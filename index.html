@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>سيرتي برو - الصفحة الرئيسية</title>
+  <link rel="stylesheet" href="./style.css">
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <!-- Header with logo and language toggle -->
+  <header class="header">
+    <div style="display:flex; align-items:center;">
+      <img src="./logo.png" alt="Logo" class="logo">
+      <span style="font-weight:bold; font-size:1.2rem; margin-inline-start:0.5rem;" data-i18n="site_name">سيرتي برو</span>
+    </div>
+    <div>
+      <button id="toggle-lang" style="background:none;border:none;color:#4a90e2;font-weight:bold;cursor:pointer;">English</button>
+    </div>
+  </header>
+
+  <!-- Hero section -->
+  <section class="hero">
+    <h1 data-i18n="landing_title">منشئ السير الذاتية الاحترافي</h1>
+    <p data-i18n="landing_subtitle">
+      أنشئ سيرتك الذاتية بسهولة وبأسلوب عصري يتوافق مع أحدث المعايير العالمية.
+    </p>
+    <button class="cta-button" onclick="scrollToSection('auth-section')" data-i18n="landing_cta">
+      ابدأ الآن
+    </button>
+  </section>
+
+  <!-- Features -->
+  <section class="features">
+    <div class="feature-item">
+      <h3 data-i18n="feature_easy">سهولة الاستخدام</h3>
+      <p data-i18n="feature_easy_desc">واجهة بسيطة وسلسة تتيح لك إنشاء سيرتك الذاتية خلال دقائق.</p>
+    </div>
+    <div class="feature-item">
+      <h3 data-i18n="feature_design">تصاميم احترافية</h3>
+      <p data-i18n="feature_design_desc">اختر من بين مجموعة متنوعة من القوالب المتناسقة مع معايير التوظيف.</p>
+    </div>
+    <div class="feature-item">
+      <h3 data-i18n="feature_export">تصدير متعدد</h3>
+      <p data-i18n="feature_export_desc">حمّل سيرتك الذاتية بصيغة PDF أو شاركها مباشرة عبر الروابط.</p>
+    </div>
+  </section>
+
+  <!-- Authentication section -->
+  <section id="auth-section" class="container">
+    <h2 data-i18n="auth_heading">تسجيل الدخول أو إنشاء حساب</h2>
+    <div id="auth-forms">
+      <!-- Login form -->
+      <div id="login-form" style="display:none;">
+        <h3 data-i18n="login_title">تسجيل الدخول</h3>
+        <form onsubmit="login(event)" novalidate>
+          <div class="form-group">
+            <label data-i18n="email">البريد الإلكتروني</label>
+            <input type="email" id="login-email" required>
+          </div>
+          <div class="form-group">
+            <label data-i18n="password">كلمة المرور</label>
+            <input type="password" id="login-password" required>
+          </div>
+          <div class="actions">
+            <button type="submit" data-i18n="login_button">دخول</button>
+          </div>
+        </form>
+        <p>
+          <span data-i18n="no_account">ليس لديك حساب؟</span>
+          <a href="#" onclick="showRegisterForm()" data-i18n="register_link">إنشاء حساب</a>
+        </p>
+      </div>
+      <!-- Register form -->
+      <div id="register-form" style="display:none;">
+        <h3 data-i18n="register_title">إنشاء حساب</h3>
+        <form onsubmit="register(event)" novalidate>
+          <div class="form-group">
+            <label data-i18n="full_name">الاسم الكامل</label>
+            <input type="text" id="register-name" required>
+          </div>
+          <div class="form-group">
+            <label data-i18n="email">البريد الإلكتروني</label>
+            <input type="email" id="register-email" required>
+          </div>
+          <div class="form-group">
+            <label data-i18n="password">كلمة المرور</label>
+            <input type="password" id="register-password" required>
+          </div>
+          <div class="actions">
+            <button type="submit" data-i18n="register_button">تسجيل</button>
+          </div>
+        </form>
+        <p>
+          <span data-i18n="have_account">لديك حساب بالفعل؟</span>
+          <a href="#" onclick="showLoginForm()" data-i18n="login_link">تسجيل الدخول</a>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>&copy; <span id="year"></span> سيرتي برو. جميع الحقوق محفوظة.</p>
+  </footer>
+</body>
+</html>

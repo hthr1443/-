@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="admin_title">إعدادات الموقع</title>
+  <link rel="stylesheet" href="./style.css">
+  <script defer src="app.js"></script>
+  <script defer src="admin.js"></script>
+</head>
+<body>
+  <!-- Header with logo, language toggle, navigation links and logout -->
+  <header class="header">
+    <div style="display:flex; align-items:center;">
+      <img src="./logo.png" alt="Logo" class="logo">
+      <span style="font-weight:bold; font-size:1.2rem; margin-inline-start:0.5rem;" data-i18n="site_name">سيرتي برو</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:1rem;">
+      <button id="toggle-lang" style="background:none;border:none;color:#4a90e2;font-weight:bold;cursor:pointer;">English</button>
+      <a href="builder.html" style="color:#4a90e2;font-weight:bold;text-decoration:none; cursor:pointer;">
+        <span data-i18n="builder_title">منشئ السير الذاتية</span>
+      </a>
+      <a href="storage.html" style="color:#4a90e2;font-weight:bold;text-decoration:none; cursor:pointer;">
+        <span data-i18n="storage_nav">خدمة التخزين</span>
+      </a>
+      <button onclick="logout()" style="background:none;border:none;color:#d9534f;font-weight:bold;cursor:pointer;">
+        <span data-i18n="logout">تسجيل الخروج</span>
+      </button>
+    </div>
+  </header>
+  <section class="container">
+    <h2 data-i18n="admin_title">إعدادات الموقع</h2>
+    <p data-i18n="admin_desc">قم بتعديل اسم الموقع والعنوان والوصف والسعر المعروض للمستخدمين.</p>
+    <form id="admin-form" onsubmit="saveSettings(event)" style="max-width:600px;">
+      <div class="form-group">
+        <label for="site-name" data-i18n="admin_site_name_label">اسم الموقع</label>
+        <input type="text" id="site-name">
+      </div>
+      <div class="form-group">
+        <label for="landing-title" data-i18n="admin_landing_title_label">عنوان الصفحة الرئيسية</label>
+        <input type="text" id="landing-title">
+      </div>
+      <div class="form-group">
+        <label for="landing-subtitle" data-i18n="admin_landing_subtitle_label">وصف الصفحة الرئيسية</label>
+        <input type="text" id="landing-subtitle">
+      </div>
+      <div class="form-group">
+        <label for="price" data-i18n="admin_price_label">السعر (بالريال السعودي)</label>
+        <input type="number" id="price" min="1" step="1">
+      </div>
+      <div class="actions">
+        <button type="submit" data-i18n="admin_save_button">حفظ التعديلات</button>
+      </div>
+    </form>
+  </section>
+  <footer class="footer">
+    <p>&copy; <span id="year"></span> <span data-i18n="site_name">سيرتي برو</span>. جميع الحقوق محفوظة.</p>
+  </footer>
+</body>
+</html>

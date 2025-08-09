@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="builder_title">سيرتي برو</title>
+  <link rel="stylesheet" href="./style.css">
+  <script defer src="app.js"></script>
+  <script defer src="builder.js"></script>
+</head>
+<body>
+  <!-- Header with logo, language toggle, and logout -->
+  <header class="header">
+    <div style="display:flex; align-items:center;">
+      <img src="./logo.png" alt="Logo" class="logo">
+      <span style="font-weight:bold; font-size:1.2rem; margin-inline-start:0.5rem;" data-i18n="site_name">سيرتي برو</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:1rem;">
+      <button id="toggle-lang" style="background:none;border:none;color:#4a90e2;font-weight:bold;cursor:pointer;">English</button>
+      <!-- Link to the storage service -->
+      <a href="storage.html" id="storage-link" style="color:#4a90e2;font-weight:bold;text-decoration:none; cursor:pointer;">
+        <span data-i18n="storage_nav">خدمة التخزين</span>
+      </a>
+      <!-- Link to admin settings -->
+      <a href="admin.html" id="admin-link" style="color:#4a90e2;font-weight:bold;text-decoration:none; cursor:pointer;">
+        <span data-i18n="admin_title">إعدادات الموقع</span>
+      </a>
+      <button onclick="logout()" style="background:none;border:none;color:#d9534f;font-weight:bold;cursor:pointer;">
+        <span data-i18n="logout">تسجيل الخروج</span>
+      </button>
+    </div>
+  </header>
+  <section class="container">
+    <h2 data-i18n="builder_title">منشئ السير الذاتية</h2>
+    <form id="cv-form" onsubmit="generateCV(event)">
+      <label data-i18n="full_name">الاسم الكامل</label>
+      <input type="text" id="cv-name">
+
+      <label data-i18n="email">البريد الإلكتروني</label>
+      <input type="email" id="cv-email">
+
+      <label data-i18n="phone">رقم الهاتف</label>
+      <input type="text" id="cv-phone">
+
+      <label data-i18n="summary">الملخص</label>
+      <textarea id="cv-summary"></textarea>
+
+      <label data-i18n="experience">الخبرات</label>
+      <textarea id="cv-experience" placeholder="مثال: الاسم الوظيفي - الشركة - السنوات"></textarea>
+
+      <label data-i18n="education">التعليم</label>
+      <textarea id="cv-education" placeholder="مثال: الدرجة العلمية - المؤسسة - السنة"></textarea>
+
+      <label data-i18n="skills">المهارات</label>
+      <textarea id="cv-skills" placeholder="مثل: التحليل، إدارة المشاريع، التصميم"></textarea>
+
+      <label data-i18n="choose_template">اختر قالب سيرتك الذاتية</label>
+      <select id="cv-template">
+        <!-- Modern templates (1–10) -->
+        <option value="template1" data-i18n="template1">قالب عصري 1</option>
+        <option value="template2" data-i18n="template2">قالب عصري 2</option>
+        <option value="template3" data-i18n="template3">قالب عصري 3</option>
+        <option value="template4" data-i18n="template4">قالب عصري 4</option>
+        <option value="template5" data-i18n="template5">قالب عصري 5</option>
+        <option value="template6" data-i18n="template6">قالب عصري 6</option>
+        <option value="template7" data-i18n="template7">قالب عصري 7</option>
+        <option value="template8" data-i18n="template8">قالب عصري 8</option>
+        <option value="template9" data-i18n="template9">قالب عصري 9</option>
+        <option value="template10" data-i18n="template10">قالب عصري 10</option>
+        <!-- Traditional templates (11–20) -->
+        <option value="template11" data-i18n="template11">قالب تقليدي 1</option>
+        <option value="template12" data-i18n="template12">قالب تقليدي 2</option>
+        <option value="template13" data-i18n="template13">قالب تقليدي 3</option>
+        <option value="template14" data-i18n="template14">قالب تقليدي 4</option>
+        <option value="template15" data-i18n="template15">قالب تقليدي 5</option>
+        <option value="template16" data-i18n="template16">قالب تقليدي 6</option>
+        <option value="template17" data-i18n="template17">قالب تقليدي 7</option>
+        <option value="template18" data-i18n="template18">قالب تقليدي 8</option>
+        <option value="template19" data-i18n="template19">قالب تقليدي 9</option>
+        <option value="template20" data-i18n="template20">قالب تقليدي 10</option>
+      </select>
+      <div class="actions">
+        <button type="submit" data-i18n="submit_cv">إنشاء السيرة الذاتية</button>
+      </div>
+    </form>
+    <!-- Container where the generated CV will appear -->
+    <div id="cv-preview"></div>
+    <!-- Button to download the generated CV as a PDF. Initially hidden until a CV is generated. -->
+    <div style="margin-top:1rem;">
+      <button id="download-pdf-btn" onclick="downloadPDF()" style="display:none;" data-i18n="download_pdf">تحميل PDF</button>
+    </div>
+  </section>
+</body>
+</html>

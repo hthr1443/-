@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="payment_title">إتمام عملية الدفع</title>
+  <link rel="stylesheet" href="./style.css">
+  <script defer src="app.js"></script>
+  <script defer src="payment.js"></script>
+</head>
+<body>
+  <!-- Header with logo and language toggle -->
+  <header class="header">
+    <div style="display:flex; align-items:center;">
+      <img src="./logo.png" alt="Logo" class="logo">
+      <span style="font-weight:bold; font-size:1.2rem; margin-inline-start:0.5rem;" data-i18n="site_name">سيرتي برو</span>
+    </div>
+    <div>
+      <button id="toggle-lang" style="background:none;border:none;color:#4a90e2;font-weight:bold;cursor:pointer;">English</button>
+    </div>
+  </header>
+  <section class="container">
+    <h2 data-i18n="payment_title">إتمام عملية الدفع</h2>
+    <p data-i18n="payment_desc">للاستفادة من سيرتي برو، يرجى إتمام عملية الدفع لمرة واحدة (30 ريال سعودي).</p>
+    <h3 data-i18n="payment_methods">طرق الدفع المتاحة</h3>
+    <ul style="list-style:none; padding:0;">
+      <li>Apple Pay</li>
+      <li>مدى</li>
+      <li>Visa / MasterCard</li>
+    </ul>
+    <div class="actions">
+      <button onclick="processPayment()" data-i18n="pay_button">ادفع الآن</button>
+    </div>
+  </section>
+  <footer class="footer">
+    <p>&copy; <span id="year"></span> سيرتي برو. جميع الحقوق محفوظة.</p>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="storage_title">خدمة التخزين</title>
+  <link rel="stylesheet" href="./style.css">
+  <script defer src="app.js"></script>
+  <script defer src="storage.js"></script>
+</head>
+<body>
+  <!-- Header with logo, language toggle, navigation links and logout -->
+  <header class="header">
+    <div style="display:flex; align-items:center;">
+      <img src="./logo.png" alt="Logo" class="logo">
+      <span style="font-weight:bold; font-size:1.2rem; margin-inline-start:0.5rem;" data-i18n="site_name">سيرتي برو</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:1rem;">
+      <button id="toggle-lang" style="background:none;border:none;color:#4a90e2;font-weight:bold;cursor:pointer;">English</button>
+      <!-- Link back to the CV builder -->
+      <a href="builder.html" style="color:#4a90e2;font-weight:bold;text-decoration:none; cursor:pointer;">
+        <span data-i18n="builder_title">منشئ السير الذاتية</span>
+      </a>
+      <button onclick="logout()" style="background:none;border:none;color:#d9534f;font-weight:bold;cursor:pointer;">
+        <span data-i18n="logout">تسجيل الخروج</span>
+      </button>
+    </div>
+  </header>
+  <section class="container">
+    <h2 data-i18n="storage_title">خدمة التخزين</h2>
+    <p data-i18n="storage_desc">ارفع ملفاتك واحفظ بياناتك بأمان مع مساحة تخزينية تصل إلى 2000 جيجا بايت.</p>
+    <div id="storage-metrics" style="margin-bottom:1rem;"></div>
+    <div>
+      <input type="file" id="file-input" multiple style="margin-bottom:0.5rem;">
+      <button id="upload-btn" data-i18n="upload_button">رفع الملف</button>
+    </div>
+    <table id="files-table" style="width:100%; margin-top:1rem; border-collapse:collapse;">
+      <thead>
+        <tr>
+          <th style="text-align:start;" data-i18n="file_name">اسم الملف</th>
+          <th style="text-align:start;" data-i18n="file_size">حجم الملف</th>
+          <th style="text-align:start;" data-i18n="file_date">تاريخ الرفع</th>
+          <th style="text-align:start;" data-i18n="delete_file">حذف</th>
+        </tr>
+      </thead>
+      <tbody id="files-body">
+        <!-- Files will be populated here -->
+      </tbody>
+    </table>
+  </section>
+  <footer class="footer">
+    <p>&copy; <span id="year"></span> <span data-i18n="site_name">سيرتي برو</span>. جميع الحقوق محفوظة.</p>
+  </footer>
+</body>
+</html>

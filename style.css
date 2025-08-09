@@ -1,0 +1,300 @@
+/*
+ * CV Builder Website Styling
+ *
+ * This stylesheet defines a light and elegant aesthetic for both the landing page
+ * and the CV builder interface. Arabic content is displayed right-to-left and
+ * uses a traditional yet modern feel through soft background tones and
+ * contrasting accent colours. Two CV templates are also defined here.
+ */
+
+/* Universal styles */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+  background-color: #f9f9f9;
+  color: #333;
+  direction: rtl;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+h1, h2, h3, h4, h5 {
+  margin: 0;
+  line-height: 1.3;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  border-radius: 4px;
+  transition: background-color 0.3s ease;
+}
+
+/* Landing page styles */
+.hero {
+  background: linear-gradient(to bottom right, #4a90e2, #8bc6ec);
+  color: #fff;
+  padding: 6rem 2rem;
+  text-align: center;
+}
+
+.hero h1 {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.hero p {
+  font-size: 1.25rem;
+  margin-bottom: 2rem;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.hero .cta-button {
+  background-color: #fff;
+  color: #2c3e50;
+  font-weight: bold;
+}
+
+.hero .cta-button:hover {
+  background-color: #f1f1f1;
+}
+
+.features {
+  padding: 4rem 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-evenly;
+  background-color: #fff;
+}
+
+.feature-item {
+  flex: 1 1 250px;
+  max-width: 300px;
+  margin: 1rem;
+  padding: 1.5rem;
+  background: #f4f6fb;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.feature-item h3 {
+  margin-bottom: 0.5rem;
+  color: #4a90e2;
+}
+
+.footer {
+  background-color: #2c3e50;
+  color: #fff;
+  text-align: center;
+  padding: 1rem;
+}
+
+/* Header bar */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+  background-color: #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.header .logo {
+  width: 40px;
+  height: auto;
+}
+
+/* Builder & Payment container styles */
+.container {
+  max-width: 900px;
+  margin: 2rem auto;
+  padding: 2rem;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.container h2 {
+  margin-bottom: 1rem;
+  color: #2c3e50;
+}
+
+form label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-weight: bold;
+}
+
+/* Form group spacing */
+.form-group {
+  margin-top: 1rem;
+}
+
+form input,
+form textarea,
+form select {
+  width: 100%;
+  padding: 0.5rem;
+  margin-top: 0.25rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+form textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+form .actions {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+form .actions button {
+  background-color: #4a90e2;
+  color: #fff;
+}
+
+form .actions button:hover {
+  background-color: #357ab8;
+}
+
+/* CV preview container */
+#cv-preview {
+  margin-top: 3rem;
+  display: none;
+}
+
+/* Download PDF button styling */
+#download-pdf-btn {
+  background-color: #4a90e2;
+  color: #fff;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+#download-pdf-btn:hover {
+  background-color: #357ab8;
+}
+
+/* Template: Modern */
+.cv-modern {
+  display: flex;
+  width: 100%;
+  min-height: 600px;
+  border: 1px solid #ddd;
+}
+
+.cv-modern .left-panel {
+  width: 30%;
+  background-color: #f4f6fb;
+  padding: 1.5rem;
+  color: #2c3e50;
+}
+
+.cv-modern .left-panel .section-title {
+  font-weight: bold;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  color: #4a90e2;
+  border-bottom: 2px solid #4a90e2;
+  display: inline-block;
+}
+
+.cv-modern .right-panel {
+  width: 70%;
+  padding: 1.5rem;
+}
+
+.cv-modern .right-panel .name {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #4a90e2;
+  margin-bottom: 0.5rem;
+}
+
+.cv-modern .right-panel .title {
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+  color: #2c3e50;
+}
+
+.cv-modern .right-panel .section {
+  margin-top: 1.5rem;
+}
+
+.cv-modern .right-panel .section h3 {
+  color: #4a90e2;
+  border-bottom: 2px solid #4a90e2;
+  display: inline-block;
+  padding-bottom: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Template: Traditional */
+.cv-traditional {
+  width: 100%;
+  min-height: 600px;
+  border: 1px solid #ddd;
+  padding: 2rem;
+  background-color: #fff;
+}
+
+.cv-traditional .name {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #00695c;
+  margin-bottom: 0.25rem;
+}
+
+.cv-traditional .title {
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+  color: #333;
+}
+
+.cv-traditional .section {
+  margin-top: 1.5rem;
+}
+
+.cv-traditional .section h3 {
+  font-size: 1.1rem;
+  color: #00695c;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid #00695c;
+  display: inline-block;
+  padding-bottom: 0.25rem;
+}
+
+.cv-traditional .section p {
+  margin: 0.25rem 0;
+  line-height: 1.4;
+}
+
+/* Table styles for storage service */
+table th,
+table td {
+  padding: 0.5rem;
+  border-bottom: 1px solid #eee;
+  font-size: 0.9rem;
+}
+table th {
+  background-color: #f4f6fb;
+  color: #2c3e50;
+}
