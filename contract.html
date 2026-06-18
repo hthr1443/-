@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>منظومة عقد صلاح</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <script src="lib/tailwind.js"></script>
+    <script src="lib/react.production.min.js"></script>
+    <script src="lib/react-dom.production.min.js"></script>
+    <script src="lib/babel.min.js"></script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar{width:6px}
+        .custom-scrollbar::-webkit-scrollbar-track{background:rgba(0,0,0,.1);border-radius:10px}
+        .custom-scrollbar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:10px}
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover{background:rgba(8,145,178,.5)}
+        @keyframes fadeInUp{from{opacity:0;transform:translateY(20px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+        .animate-fade-in-up{animation:fadeInUp .4s cubic-bezier(.16,1,.3,1) forwards}
+    </style>
+</head>
+<body class="bg-slate-950 m-0 p-0">
+<div id="root"></div>
+
+<script>
+// ============================================================
+// IndexedDB Storage Layer
+// ============================================================
+const DB = {
+    db: null,
+    init() {
+        return new Promise((resolve, reject) => {
+            const req = indexedDB.open('salah-contract', 1);
+            req.onupgradeneeded = (e) => {
+                const d = e.target.result;
+                if (!d.objectStoreNames.contains('weeks')) d.createObjectStore('weeks', { keyPath: 'id' });
+                if (!d.objectStoreNames.contains('backups')) d.createObjectStore('backups', { keyPath: 'timestamp' });
+            };
+            req.onsuccess = (e) => { this.db = e.target.result; resolve(); };
+            req.onerror = () => reject(req.error);
+        });
+    },
+    getAll(store) {
+        return new Promise((resolve, reject) => {
+            const req = this.db.transaction(store, 'readonly').objectStore(store).getAll();
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+    },
+    put(store, data) {
+        return new Promise((resolve, reject) => {
+            const tx = this.db.transaction(store, 'readwrite');
+            tx.objectStore(store).put(data);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    },
+    del(store, key) {
+        return new Promise((resolve, reject) => {
+            const tx = this.db.transaction(store, 'readwrite');
+            tx.objectStore(store).delete(key);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    }
+};
+
+// ============================================================
+// Backup System — auto daily at 12:00, max 30 copies
+// ============================================================
+const Backup = {
+    HOUR: 12,
+    MAX: 30,
+    async check() {
+        const today = new Date().toDateString();
+        if (localStorage.getItem('backup-date') === today) return false;
+        if (new Date().getHours() >= this.HOUR) {
+            await this.create();
+            localStorage.setItem('backup-date', today);
+            return true;
+        }
+        return false;
+    },
+    async create() {
+        const weeks = await DB.getAll('weeks');
+        await DB.put('backups', {
+            timestamp: Date.now(),
+            date: new Date().toLocaleDateString('ar-SA'),
+            dateISO: new Date().toISOString(),
+            weekCount: weeks.length,
+            data: weeks
+        });
+        await this.prune();
+    },
+    async prune() {
+        const all = await DB.getAll('backups');
+        if (all.length > this.MAX) {
+            all.sort((a, b) => a.timestamp - b.timestamp);
+            for (const b of all.slice(0, all.length - this.MAX)) {
+                await DB.del('backups', b.timestamp);
+            }
+        }
+    },
+    download(backup) {
+        const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'contract-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+    },
+    async downloadLatest() {
+        let all = await DB.getAll('backups');
+        if (all.length === 0) { await this.create(); all = await DB.getAll('backups'); }
+        all.sort((a, b) => b.timestamp - a.timestamp);
+        if (all[0]) this.download(all[0]);
+    }
+};
+
+// ============================================================
+// Image Compression
+// ============================================================
+function compressImage(dataUrl, maxDim) {
+    maxDim = maxDim || 800;
+    return new Promise(function(resolve) {
+        var img = new Image();
+        img.onload = function() {
+            var w = img.width, h = img.height;
+            if (w <= maxDim && h <= maxDim) { resolve(dataUrl); return; }
+            var ratio = Math.min(maxDim / w, maxDim / h);
+            w = Math.round(w * ratio);
+            h = Math.round(h * ratio);
+            var c = document.createElement('canvas');
+            c.width = w; c.height = h;
+            c.getContext('2d').drawImage(img, 0, 0, w, h);
+            resolve(c.toDataURL('image/jpeg', 0.75));
+        };
+        img.onerror = function() { resolve(dataUrl); };
+        img.src = dataUrl;
+    });
+}
+
+// ============================================================
+// Service Worker Registration
+// ============================================================
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('contract-sw.js').catch(function() {});
+}
+</script>
+
+<script id="app-source" type="text/plain">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ============================================================
+// Color Palette & Theme Presets
+// ============================================================
+const textColorPalette = [
+    { name: 'ثلجي', value: '#e0f2fe' }, { name: 'أحمر', value: '#fca5a5' },
+    { name: 'أصفر', value: '#fde047' }, { name: 'أخضر', value: '#86efac' },
+    { name: 'أزرق', value: '#93c5fd' }, { name: 'وردي', value: '#f9a8d4' },
+    { name: 'برتقالي', value: '#fdba74' }, { name: 'بنفسجي', value: '#d8b4fe' },
+];
+
+const themePresets = [
+    { name: 'أزرق داكن (افتراضي)', type: 'gradient', value: 'from-slate-900 via-blue-950 to-cyan-950' },
+    { name: 'غسق (بنفسجي)', type: 'gradient', value: 'from-slate-900 via-purple-900 to-slate-900' },
+    { name: 'غابة (أخضر داكن)', type: 'gradient', value: 'from-slate-900 via-emerald-950 to-teal-900' },
+    { name: 'صحراء (بني وذهبي)', type: 'gradient', value: 'from-slate-900 via-stone-800 to-amber-900/50' },
+    { name: 'أسود مطفي', type: 'gradient', value: 'from-black via-zinc-900 to-black' },
+    { name: 'نار هادئة', type: 'gradient', value: 'from-slate-900 via-red-950 to-orange-950' },
+];
+
+// ============================================================
+// Helper: Create New Week
+// ============================================================
+function createNewWeek(version, previousData) {
+    const base = {
+        id: Date.now(),
+        contractNumber: String(version),
+        dateCreated: new Date().toLocaleDateString('ar-SA'),
+        background: { type: 'gradient', value: 'from-slate-900 via-blue-950 to-cyan-950' },
+        fundamentalAmendments: { text: '', color: '#fde047' },
+        coreImages: [],
+        permanentExceptions: { text: '', color: '#e0f2fe' },
+        temporaryExceptions: { text: '', color: '#e0f2fe' },
+        violationsList: [],
+        lessonsLearned: { text: '', color: '#fbcfe8' },
+        poems: [],
+        isSigned: false,
+        complianceItems: [
+            { id: 1, text: 'أداء الصلوات في وقتها', color: '#e0f2fe' },
+            { id: 2, text: 'الالتزام بورد القرآن', color: '#e0f2fe' },
+        ]
+    };
+
+    if (!previousData) return base;
+
+    return {
+        ...base,
+        complianceItems: Array.isArray(previousData.complianceItems) && previousData.complianceItems.length > 0
+            ? previousData.complianceItems.map(function(item) { return { ...item }; })
+            : base.complianceItems,
+        fundamentalAmendments: previousData.fundamentalAmendments
+            ? { ...previousData.fundamentalAmendments }
+            : base.fundamentalAmendments,
+        permanentExceptions: previousData.permanentExceptions
+            ? { ...previousData.permanentExceptions }
+            : base.permanentExceptions,
+        poems: Array.isArray(previousData.poems)
+            ? previousData.poems.map(function(p) { return { ...p, isExpanded: false }; })
+            : [],
+    };
+}
+
+// ============================================================
+// Display Block Component
+// ============================================================
+function DisplayBlock({ title, text, color, onOpenEditor, minHeight, extraClass, icon }) {
+    return (
+        <div onClick={onOpenEditor} className={'group relative bg-slate-900/60 backdrop-blur-md p-4 rounded-xl border border-cyan-800/50 hover:border-cyan-400/80 cursor-pointer transition-all overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.3)] ' + (minHeight || 'min-h-[3rem]') + ' ' + (extraClass || '')}>
+            <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-0 pointer-events-none" />
+            <div className="relative z-10 flex justify-between items-start mb-2">
+                {title && <label className="text-xs font-bold text-cyan-400 flex items-center gap-1">{icon}{title}</label>}
+                <span className="text-cyan-200 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] bg-slate-800/80 px-2 py-1 rounded shadow-sm border border-cyan-600/50">✎ تعديل</span>
+            </div>
+            <div className="relative z-10 text-sm whitespace-pre-wrap break-words leading-relaxed" style={{ color: color }}>
+                {text || <span className="text-slate-400 italic opacity-70">اضغط هنا للكتابة...</span>}
+            </div>
+        </div>
+    );
+}
+
+// ============================================================
+// Main App Component
+// ============================================================
+function App() {
+    const [loading, setLoading] = useState(true);
+    const [weeks, setWeeks] = useState([]);
+    const [currentWeekId, setCurrentWeekId] = useState(null);
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
+    const [syncStatus, setSyncStatus] = useState('');
+    const [lastBackupInfo, setLastBackupInfo] = useState(null);
+
+    const [activeEditor, setActiveEditor] = useState(null);
+    const [showStatsModal, setShowStatsModal] = useState(false);
+    const [showThemeModal, setShowThemeModal] = useState(false);
+    const [showRankModal, setShowRankModal] = useState(false);
+    const [showSurpriseModal, setShowSurpriseModal] = useState(false);
+    const [showBackupModal, setShowBackupModal] = useState(false);
+    const [zoomedImage, setZoomedImage] = useState(null);
+
+    const [newViolationAmount, setNewViolationAmount] = useState('');
+    const [newViolationNote, setNewViolationNote] = useState('');
+    const [newPoemTitle, setNewPoemTitle] = useState('');
+    const [newPoemContent, setNewPoemContent] = useState('');
+
+    const fileInputRef = useRef(null);
+    const coreImageInputRef = useRef(null);
+    const restoreInputRef = useRef(null);
+    const saveTimerRef = useRef(null);
+
+    // ---- Init ----
+    useEffect(function() {
+        (async function() {
+            try {
+                await DB.init();
+                const loaded = await DB.getAll('weeks');
+                loaded.sort(function(a, b) { return b.id - a.id; });
+
+                if (loaded.length > 0) {
+                    setWeeks(loaded);
+                    setCurrentWeekId(loaded[0].id);
+                } else {
+                    const first = createNewWeek(1);
+                    await DB.put('weeks', first);
+                    setWeeks([first]);
+                    setCurrentWeekId(first.id);
+                }
+
+                const didBackup = await Backup.check();
+                if (didBackup) {
+                    setSyncStatus('تم النسخ الاحتياطي ✅');
+                    setTimeout(function() { setSyncStatus(''); }, 3000);
+                }
+                await refreshBackupInfo();
+            } catch (err) {
+                console.error('Init error:', err);
+            } finally {
+                setLoading(false);
+            }
+        })();
+
+        function goOnline() { setIsOnline(true); setSyncStatus('متصل ✅'); setTimeout(function() { setSyncStatus(''); }, 2000); }
+        function goOffline() { setIsOnline(false); setSyncStatus('غير متصل — الوضع المحلي 📱'); }
+        window.addEventListener('online', goOnline);
+        window.addEventListener('offline', goOffline);
+
+        var backupTimer = setInterval(async function() {
+            try {
+                var did = await Backup.check();
+                if (did) {
+                    setSyncStatus('تم النسخ الاحتياطي التلقائي ✅');
+                    setTimeout(function() { setSyncStatus(''); }, 3000);
+                    await refreshBackupInfo();
+                }
+            } catch (e) { /* silent */ }
+        }, 60000);
+
+        return function() {
+            window.removeEventListener('online', goOnline);
+            window.removeEventListener('offline', goOffline);
+            clearInterval(backupTimer);
+        };
+    }, []);
+
+    async function refreshBackupInfo() {
+        var all = await DB.getAll('backups');
+        if (all.length > 0) {
+            all.sort(function(a, b) { return b.timestamp - a.timestamp; });
+            setLastBackupInfo({ time: all[0].date, count: all.length });
+        } else {
+            setLastBackupInfo(null);
+        }
+    }
+
+    // ---- Save (debounced to IndexedDB) ----
+    function saveWeek(weekData) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = setTimeout(function() {
+            DB.put('weeks', weekData).catch(function(err) {
+                console.error('Save error:', err);
+                setSyncStatus('خطأ في الحفظ ❌');
+            });
+        }, 300);
+    }
+
+    // ---- Derived state ----
+    var currentWeek = weeks.find(function(w) { return w.id === currentWeekId; }) || weeks[0];
+    var currentWeekIndex = weeks.findIndex(function(w) { return w.id === currentWeekId; });
+
+    // ---- Update helpers ----
+    function updateCurrentWeek(updated) {
+        setWeeks(function(prev) { return prev.map(function(w) { return w.id === currentWeekId ? updated : w; }); });
+        saveWeek(updated);
+    }
+
+    function handleUpdate(key, value) {
+        if (!currentWeek) return;
+        updateCurrentWeek({ ...currentWeek, [key]: value });
+    }
+
+    function handleComplexUpdate(key, field, value) {
+        if (!currentWeek) return;
+        var obj = currentWeek[key] || { text: '', color: '#e0f2fe' };
+        updateCurrentWeek({ ...currentWeek, [key]: { ...obj, [field]: value } });
+    }
+
+    function handleItemUpdate(idx, field, value) {
+        if (!currentWeek) return;
+        var items = [...(currentWeek.complianceItems || [])];
+        items[idx] = { ...items[idx], [field]: value };
+        updateCurrentWeek({ ...currentWeek, complianceItems: items });
+    }
+
+    // ---- Week operations ----
+    function handleCreateNewWeek() {
+        var nextVer = parseInt(currentWeek.contractNumber) + 1 || weeks.length + 1;
+        var nw = createNewWeek(nextVer, currentWeek);
+        DB.put('weeks', nw);
+        setWeeks(function(prev) { return [nw, ...prev]; });
+        setCurrentWeekId(nw.id);
+    }
+
+    async function handleDeleteWeek(weekId) {
+        if (weeks.length <= 1) return;
+        if (!confirm('هل تريد حذف هذا الأسبوع نهائياً؟')) return;
+        await DB.del('weeks', weekId);
+        var remaining = weeks.filter(function(w) { return w.id !== weekId; });
+        setWeeks(remaining);
+        if (currentWeekId === weekId) setCurrentWeekId(remaining[0] ? remaining[0].id : null);
+    }
+
+    // ---- Stats ----
+    function generateStats() {
+        var allTimeScore = 0, todayScore = 0, maxViolationInOneWeek = 0;
+        var startOfToday = new Date().setHours(0, 0, 0, 0);
+
+        weeks.forEach(function(w) {
+            var weekTotal = 0;
+            (w.violationsList || []).forEach(function(v) {
+                var amt = Number(v.amount) || 0;
+                allTimeScore += amt;
+                weekTotal += amt;
+                if (v.timestamp >= startOfToday) todayScore += amt;
+            });
+            if (weekTotal > maxViolationInOneWeek) maxViolationInOneWeek = weekTotal;
+        });
+
+        var weekly = currentWeek ? (currentWeek.violationsList || []).reduce(function(a, b) { return a + (Number(b.amount) || 0); }, 0) : 0;
+        var totalWeeks = weeks.length;
+        var perfectWeeks = weeks.filter(function(w) { return (!w.violationsList || w.violationsList.length === 0) && w.isSigned; }).length;
+
+        var deepInsight;
+        if (weekly === 0) {
+            deepInsight = { title: 'صفاء وإشراق', desc: 'روحك خفيفة هذا الأسبوع، لم تكبلها قيود المخالفات.', color: 'text-emerald-400', quote: 'من لزم الاستقامة، أشرقت في قلبه الكرامة' };
+        } else if (weekly <= 50) {
+            deepInsight = { title: 'جهاد النفس', desc: 'هناك كبوات صغيرة، لكن الميزان لا يزال في صالحك.', color: 'text-yellow-400', quote: 'والذين جاهدوا فينا لنهدينهم سبلنا' };
+        } else if (weekly <= 150) {
+            deepInsight = { title: 'جرس إنذار', desc: 'الهوى بدأ يثقل كاهلك. تحتاج إلى وقفة صارمة مع ذاتك الآن.', color: 'text-orange-400', quote: 'لا تحقرن صغيرة إن الجبال من الحصى' };
+        } else {
+            deepInsight = { title: 'عاصفة الغفلة', desc: 'لقد ابتعدت كثيراً. عد واغسل هذا الركام بتوبة صادقة.', color: 'text-rose-500', quote: 'إن النفس لأمارة بالسوء إلا ما رحم ربي' };
+        }
+
+        return { today: todayScore, weekly: weekly, allTime: allTimeScore, maxViolationInOneWeek: maxViolationInOneWeek, totalWeeks: totalWeeks, perfectWeeks: perfectWeeks, deepInsight: deepInsight };
+    }
+
+    var stats = generateStats();
+
+    // ---- Violations ----
+    function addViolation() {
+        var amount = parseInt(newViolationAmount);
+        if (!amount || isNaN(amount) || amount <= 0) return;
+        var dateStr = new Date().toLocaleDateString('ar-SA', { weekday: 'long', month: 'long', day: 'numeric' });
+        var v = { id: Date.now(), amount: amount, dateStr: dateStr, timestamp: Date.now(), note: (newViolationNote || '').trim() };
+        handleUpdate('violationsList', [v, ...(currentWeek.violationsList || [])]);
+        setNewViolationAmount('');
+        setNewViolationNote('');
+    }
+
+    function removeViolation(idToRemove) {
+        handleUpdate('violationsList', (currentWeek.violationsList || []).filter(function(v) { return v.id !== idToRemove; }));
+    }
+
+    // ---- Poems ----
+    function handleAddPoem() {
+        if (!newPoemTitle || !newPoemContent) return;
+        var poem = { id: Date.now(), title: newPoemTitle, content: newPoemContent, isExpanded: false };
+        handleUpdate('poems', [...(currentWeek.poems || []), poem]);
+        setNewPoemTitle('');
+        setNewPoemContent('');
+        setActiveEditor(null);
+    }
+
+    function togglePoemExpand(id) {
+        handleUpdate('poems', (currentWeek.poems || []).map(function(p) { return p.id === id ? { ...p, isExpanded: !p.isExpanded } : p; }));
+    }
+
+    function removePoem(id) {
+        handleUpdate('poems', (currentWeek.poems || []).filter(function(p) { return p.id !== id; }));
+    }
+
+    // ---- Compliance items ----
+    function handleDeleteItem(idx) {
+        if (!currentWeek.complianceItems || currentWeek.complianceItems.length <= 1) return;
+        updateCurrentWeek({ ...currentWeek, complianceItems: currentWeek.complianceItems.filter(function(_, i) { return i !== idx; }) });
+    }
+
+    // ---- Sign ----
+    function signContract() { handleUpdate('isSigned', true); setShowRankModal(true); }
+
+    // ---- Images ----
+    function handleImageUpload(e) {
+        var file = e.target.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onloadend = async function() {
+            var compressed = await compressImage(reader.result, 1200);
+            handleUpdate('background', { type: 'image', value: compressed });
+            setShowThemeModal(false);
+        };
+        reader.readAsDataURL(file);
+    }
+
+    async function handleAddCoreImages(e) {
+        var files = Array.from(e.target.files);
+        if (files.length === 0) return;
+        var promises = files.map(function(file) {
+            return new Promise(function(resolve) {
+                var reader = new FileReader();
+                reader.onloadend = async function() {
+                    var compressed = await compressImage(reader.result, 800);
+                    resolve({ id: Date.now() + Math.random(), url: compressed });
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+        var newImages = await Promise.all(promises);
+        handleUpdate('coreImages', [...(currentWeek.coreImages || []), ...newImages]);
+        e.target.value = null;
+    }
+
+    function handleDeleteCoreImage(e, imgId) {
+        e.stopPropagation();
+        handleUpdate('coreImages', (currentWeek.coreImages || []).filter(function(img) { return img.id !== imgId; }));
+    }
+
+    // ---- Backup ----
+    async function handleManualBackup() {
+        await Backup.create();
+        await refreshBackupInfo();
+        setSyncStatus('تم النسخ الاحتياطي ✅');
+        setTimeout(function() { setSyncStatus(''); }, 3000);
+    }
+
+    async function handleRestore(e) {
+        var file = e.target.files[0];
+        if (!file) return;
+        try {
+            var text = await file.text();
+            var backup = JSON.parse(text);
+            var data = backup.data;
+            if (!Array.isArray(data) || data.length === 0) { alert('ملف النسخة الاحتياطية غير صالح'); return; }
+            for (var i = 0; i < data.length; i++) {
+                if (!data[i].id || !data[i].contractNumber) { alert('بيانات غير صالحة في الملف'); return; }
+            }
+            for (var j = 0; j < data.length; j++) { await DB.put('weeks', data[j]); }
+            var loaded = await DB.getAll('weeks');
+            loaded.sort(function(a, b) { return b.id - a.id; });
+            setWeeks(loaded);
+            if (loaded.length > 0) setCurrentWeekId(loaded[0].id);
+            setSyncStatus('تم الاستعادة بنجاح ✅');
+            setTimeout(function() { setSyncStatus(''); }, 3000);
+            setShowBackupModal(false);
+        } catch (err) {
+            alert('خطأ في قراءة الملف');
+        }
+        e.target.value = null;
+    }
+
+    // ---- Loading screen ----
+    if (loading) {
+        return (
+            <div dir="rtl" className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-cyan-400">
+                <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-cyan-400 mb-4"></div>
+                <h2 className="text-xl font-bold animate-pulse">جاري التحميل...</h2>
+            </div>
+        );
+    }
+
+    if (!currentWeek) return null;
+
+    // ---- Derived UI values ----
+    var appBgStyle = currentWeek.background && currentWeek.background.type === 'image'
+        ? { backgroundImage: 'url(' + currentWeek.background.value + ')', backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }
+        : {};
+    var appBgClass = currentWeek.background && currentWeek.background.type === 'gradient'
+        ? 'bg-gradient-to-br ' + currentWeek.background.value
+        : 'bg-slate-900';
+
+    var pulseOrbColor = 'bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.8)]';
+    var pulseAnim = 'animate-pulse';
+    if (stats.weekly > 0 && stats.weekly <= 50) { pulseOrbColor = 'bg-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.8)]'; }
+    else if (stats.weekly > 50 && stats.weekly <= 150) { pulseOrbColor = 'bg-orange-500 shadow-[0_0_30px_rgba(249,115,22,0.9)]'; pulseAnim = 'animate-bounce'; }
+    else if (stats.weekly > 150) { pulseOrbColor = 'bg-rose-600 shadow-[0_0_40px_rgba(225,29,72,1)]'; pulseAnim = 'animate-ping'; }
+
+    // ============================================================
+    // RENDER
+    // ============================================================
+    return (
+    <div dir="rtl" className={'min-h-screen text-cyan-50 p-4 sm:p-6 font-sans selection:bg-cyan-700 selection:text-white flex flex-col md:flex-row gap-6 relative transition-all duration-700 ' + appBgClass} style={appBgStyle}>
+
+        {currentWeek.background && currentWeek.background.type === 'image' && (
+            <React.Fragment>
+                <div className="fixed inset-0 bg-slate-950/70 pointer-events-none z-0" />
+                <div className="fixed inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent pointer-events-none z-0" />
+            </React.Fragment>
+        )}
+
+        {/* Status Bar */}
+        {syncStatus && (
+            <div className="fixed top-4 left-4 z-50 bg-slate-900/90 backdrop-blur border border-white/10 px-3 py-1.5 rounded-full text-[10px] font-bold text-emerald-400 shadow-lg flex items-center gap-2">
+                {syncStatus}
+            </div>
+        )}
+
+        {/* Online/Offline indicator */}
+        <div className={'fixed top-4 right-4 z-50 px-2 py-1 rounded-full text-[9px] font-bold border ' + (isOnline ? 'bg-emerald-900/50 text-emerald-300 border-emerald-500/30' : 'bg-rose-900/50 text-rose-300 border-rose-500/30')}>
+            {isOnline ? '● متصل' : '○ غير متصل'}
+        </div>
+
+        {/* ============ Sidebar ============ */}
+        <aside className="relative z-10 w-full md:w-72 bg-slate-900/80 backdrop-blur-xl rounded-3xl border border-white/10 p-5 flex flex-col gap-4 shadow-[0_8px_32px_rgba(0,0,0,0.5)] h-fit max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <button onClick={handleCreateNewWeek} className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold py-3.5 rounded-2xl transition-all shadow-lg border border-cyan-400/30">
+                + إنشاء أسبوع جديد
+            </button>
+            <button onClick={function() { setShowBackupModal(true); }} className="w-full bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-600 hover:to-teal-600 text-white font-bold py-3 rounded-2xl transition-all shadow-lg border border-emerald-400/30 text-sm flex items-center justify-center gap-2">
+                💾 النسخ الاحتياطي
+            </button>
+
+            <div className="text-xs text-cyan-200/80 font-bold mt-2 border-b border-white/10 pb-2">سجل العقود:</div>
+            <div className="flex flex-col gap-2">
+                {weeks.map(function(week) {
+                    return (
+                        <div key={week.id} className={'relative text-right p-3.5 rounded-2xl transition-all text-xs flex justify-between items-center cursor-pointer ' + (currentWeekId === week.id ? 'bg-cyan-900/80 border border-cyan-400 text-cyan-50 shadow-[0_0_15px_rgba(8,145,178,0.4)] font-bold' : 'bg-white/5 border border-white/5 text-slate-300 hover:bg-white/10')}>
+                            <span className="flex items-center gap-2 flex-1" onClick={function() { setCurrentWeekId(week.id); }}>
+                                <span className={'w-2 h-2 rounded-full ' + (currentWeekId === week.id ? 'bg-cyan-400' : (week.isSigned ? 'bg-amber-400' : 'bg-slate-600'))}></span>
+                                نسخة {week.contractNumber}
+                            </span>
+                            {weeks.length > 1 && (
+                                <button onClick={function(e) { e.stopPropagation(); handleDeleteWeek(week.id); }} className="text-slate-500 hover:text-rose-400 text-[10px] mr-2" title="حذف">✕</button>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        </aside>
+
+        {/* ============ Main Content ============ */}
+        <main className="relative z-10 flex-1 space-y-6 max-w-4xl w-full mx-auto pb-10">
+
+            {/* Header */}
+            <header className="bg-slate-900/80 backdrop-blur-xl p-6 rounded-3xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex flex-col md:flex-row justify-between items-center gap-5 relative overflow-hidden">
+                <div className="flex flex-col md:flex-row items-center gap-4 text-center md:text-right relative z-10 flex-1">
+                    <div onClick={function() { setShowSurpriseModal(true); }} className={'w-10 h-10 rounded-full cursor-pointer flex items-center justify-center border-2 border-white/20 transition-all hover:scale-110 ' + pulseOrbColor} title="نبض الميثاق">
+                        <div className={'w-4 h-4 bg-white/50 rounded-full ' + pulseAnim}></div>
+                    </div>
+                    <div>
+                        <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-l from-cyan-200 to-blue-400 drop-shadow-sm">منظومة عقد صلاح</h1>
+                        <p className="text-xs text-cyan-300/80 font-mono mt-1.5 bg-black/30 inline-block px-3 py-1 rounded-full border border-white/5">
+                            V7.0 | الأسبوع {currentWeekIndex === 0 ? 'الحالي' : 'السابق'}
+                            {!isOnline && ' | وضع بلا إنترنت'}
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 justify-center relative z-10">
+                    {!currentWeek.isSigned && (
+                        <button onClick={signContract} className="flex items-center gap-2 bg-gradient-to-r from-amber-600 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-white p-3 rounded-2xl border border-amber-300/50 transition-all text-xs font-bold shadow-[0_0_15px_rgba(251,191,36,0.3)] hover:scale-105">
+                            ✍️ اعتماد
+                        </button>
+                    )}
+                    <button onClick={function() { setShowThemeModal(true); }} className="bg-white/5 hover:bg-purple-900/50 text-purple-200 p-3 rounded-2xl border border-white/10 text-xs font-bold transition-all">🎨 المظهر</button>
+                    <button onClick={function() { setShowStatsModal(true); }} className="bg-white/5 hover:bg-emerald-900/50 text-emerald-200 p-3 rounded-2xl border border-white/10 text-xs font-bold transition-all">📊 الإحصائيات</button>
+                </div>
+            </header>
+
+            {/* Compliance Items */}
+            <section className="bg-slate-900/80 backdrop-blur-xl p-6 rounded-3xl border border-white/10">
+                <h2 className="text-sm font-bold mb-5 text-cyan-200 flex items-center gap-2 border-b border-white/10 pb-3">📌 بنود الالتزام الأساسية (الدستور)</h2>
+                <div className="space-y-3">
+                    {(currentWeek.complianceItems || []).map(function(item, idx) {
+                        return (
+                            <div key={item.id} className="relative group">
+                                <DisplayBlock text={item.text} color={item.color} onOpenEditor={function() { setActiveEditor({ type: 'item', index: idx, title: 'تعديل البند ' + (idx + 1) }); }} />
+                                {currentWeek.complianceItems.length > 1 && (
+                                    <button onClick={function() { handleDeleteItem(idx); }} className="absolute top-2 left-2 text-slate-500 hover:text-rose-400 text-xs opacity-0 group-hover:opacity-100 transition-opacity z-20">✕</button>
+                                )}
+                            </div>
+                        );
+                    })}
+                    <button onClick={function() { updateCurrentWeek({ ...currentWeek, complianceItems: [...(currentWeek.complianceItems || []), { id: Date.now(), text: '', color: '#e0f2fe' }] }); }} className="text-xs font-bold text-cyan-400 py-3.5 mt-3 w-full border-2 border-dashed border-white/10 hover:border-cyan-500/50 bg-white/5 hover:bg-cyan-900/30 rounded-xl transition-all">
+                        + إضافة بند جديد
+                    </button>
+                </div>
+            </section>
+
+            {/* Amendments & Exceptions */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <section className="bg-slate-900/80 backdrop-blur-xl p-6 rounded-3xl border border-amber-500/20">
+                    <h2 className="text-sm font-bold mb-4 text-amber-300 flex items-center gap-2 border-b border-white/10 pb-3">💎 التعديلات الجوهرية</h2>
+                    <DisplayBlock text={currentWeek.fundamentalAmendments && currentWeek.fundamentalAmendments.text} color={currentWeek.fundamentalAmendments && currentWeek.fundamentalAmendments.color} minHeight="min-h-[6rem]" extraClass="bg-black/40 border-amber-500/30" onOpenEditor={function() { setActiveEditor({ type: 'complex', key: 'fundamentalAmendments', title: 'الأمور الجوهرية' }); }} />
+                </section>
+                <section className="bg-slate-900/80 backdrop-blur-xl p-6 rounded-3xl border border-yellow-500/20">
+                    <h2 className="text-sm font-bold mb-4 text-yellow-200 flex items-center gap-2 border-b border-white/10 pb-3">⚡ بروتوكولات الاستثناء</h2>
+                    <div className="space-y-4">
+                        <DisplayBlock title="استثناء دائم" text={currentWeek.permanentExceptions && currentWeek.permanentExceptions.text} color={currentWeek.permanentExceptions && currentWeek.permanentExceptions.color} onOpenEditor={function() { setActiveEditor({ type: 'complex', key: 'permanentExceptions', title: 'استثناءات دائمة' }); }} />
+                        <DisplayBlock title="استثناء مؤقت (هذا الأسبوع)" text={currentWeek.temporaryExceptions && currentWeek.temporaryExceptions.text} color={currentWeek.temporaryExceptions && currentWeek.temporaryExceptions.color} onOpenEditor={function() { setActiveEditor({ type: 'complex', key: 'temporaryExceptions', title: 'استثناءات مؤقتة' }); }} />
+                    </div>
+                </section>
+            </div>
+
+            {/* Violations */}
+            <section className="bg-slate-900/80 backdrop-blur-xl p-6 rounded-3xl border border-rose-500/20 relative">
+                <div className="flex justify-between items-center mb-5 border-b border-white/10 pb-3">
+                    <h2 className="text-sm font-bold text-rose-200 flex items-center gap-2">🚨 سجل المخالفات المالي</h2>
+                    <div className="bg-rose-500/10 border border-rose-500/30 px-3 py-1.5 rounded-xl text-rose-300 font-bold text-sm">مجموع الأسبوع: {stats.weekly} ريال</div>
+                </div>
+                <div onClick={function() { setActiveEditor({ type: 'violationsList', title: 'تسجيل وإدارة المخالفات' }); }} className="group relative bg-white/5 hover:bg-rose-950/30 p-5 rounded-2xl border border-white/10 cursor-pointer transition-all min-h-[6rem] flex flex-col justify-center items-center">
+                    {(!currentWeek.violationsList || currentWeek.violationsList.length === 0) ? (
+                        <div className="text-center text-slate-400 text-sm font-medium">➕ اضغط هنا لتسجيل مخالفة جديدة</div>
+                    ) : (
+                        <div className="w-full space-y-2">
+                            {currentWeek.violationsList.slice(0, 3).map(function(v) {
+                                return (
+                                    <div key={v.id} className="flex justify-between items-center bg-black/30 p-2.5 rounded-xl border border-white/5">
+                                        <div className="flex items-center gap-3"><span className="bg-rose-500/20 text-rose-300 font-bold px-2 py-1 rounded text-sm">{v.amount} ريال</span><span className="text-xs text-slate-300">{v.dateStr}</span></div>
+                                        {v.note && <span className="text-[10px] text-slate-400 truncate max-w-[150px]">{v.note}</span>}
+                                    </div>
+                                );
+                            })}
+                            {currentWeek.violationsList.length > 3 && <div className="text-xs text-center text-rose-400 mt-2">عرض المزيد...</div>}
+                        </div>
+                    )}
+                </div>
+            </section>
+
+            {/* Visual Inspiration */}
+            <section className="bg-slate-900/80 backdrop-blur-xl p-6 rounded-3xl border border-white/10">
+                <div className="flex justify-between items-center mb-5 border-b border-white/10 pb-3">
+                    <h2 className="text-sm font-bold text-fuchsia-300 flex items-center gap-2">🖼️ الإلهام البصري</h2>
+                    <button onClick={function() { coreImageInputRef.current.click(); }} className="bg-fuchsia-600/20 hover:bg-fuchsia-600/40 text-fuchsia-200 px-3 py-1.5 rounded-xl text-xs font-bold border border-fuchsia-500/30">إضافة صور</button>
+                    <input type="file" accept="image/*" multiple ref={coreImageInputRef} onChange={handleAddCoreImages} className="hidden" />
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    {(currentWeek.coreImages || []).map(function(img) {
+                        return (
+                            <div key={img.id} className="relative aspect-square rounded-2xl overflow-hidden border border-white/10 bg-black/50 cursor-zoom-in group" onClick={function() { setZoomedImage(img.url); }}>
+                                <img src={img.url} className="w-full h-full object-cover hover:scale-105 transition-transform" alt="" />
+                                <button onClick={function(e) { handleDeleteCoreImage(e, img.id); }} className="absolute top-1 right-1 bg-black/70 text-rose-400 w-6 h-6 rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10">✕</button>
+                            </div>
+                        );
+                    })}
+                </div>
+            </section>
+
+            {/* Lessons Learned */}
+            <section className="bg-slate-900/80 backdrop-blur-xl p-6 rounded-3xl border border-pink-500/20">
+                <h2 className="text-sm font-bold mb-4 text-pink-200 flex items-center gap-2 border-b border-white/10 pb-3">
+                    <span className="text-xl">🪶</span> ما تعلمته هذا الأسبوع
+                </h2>
+                <DisplayBlock
+                    text={currentWeek.lessonsLearned && currentWeek.lessonsLearned.text}
+                    color={currentWeek.lessonsLearned && currentWeek.lessonsLearned.color}
+                    minHeight="min-h-[8rem]"
+                    extraClass="bg-black/40 border-pink-500/20"
+                    onOpenEditor={function() { setActiveEditor({ type: 'complex', key: 'lessonsLearned', title: 'تدوين ما تعلمته (خاص بهذا الأسبوع فقط)' }); }}
+                />
+            </section>
+
+            {/* Poetry */}
+            <section className="bg-slate-900/80 backdrop-blur-xl p-6 rounded-3xl border border-indigo-500/20">
+                <div className="flex justify-between items-center mb-5 border-b border-white/10 pb-3">
+                    <h2 className="text-sm font-bold text-indigo-300 flex items-center gap-2"><span className="text-xl">📜</span> ديوان الشعر</h2>
+                    <button onClick={function() { setActiveEditor({ type: 'newPoem', title: 'إضافة قصيدة أو أبيات' }); }} className="bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-200 px-4 py-2 rounded-xl text-xs font-bold border border-indigo-500/30 flex items-center gap-1">
+                        <span>+</span> قصيدة جديدة
+                    </button>
+                </div>
+                <div className="space-y-3">
+                    {(!currentWeek.poems || currentWeek.poems.length === 0) ? (
+                        <div className="text-center text-slate-500 py-6 text-sm">لم تقم بكتابة أي أشعار بعد.</div>
+                    ) : (
+                        (currentWeek.poems || []).map(function(poem) {
+                            return (
+                                <div key={poem.id} className="border border-indigo-500/20 rounded-2xl overflow-hidden bg-white/5 transition-all duration-300">
+                                    <div onClick={function() { togglePoemExpand(poem.id); }} className="flex justify-between items-center p-4 cursor-pointer hover:bg-white/5 transition-colors">
+                                        <h3 className="font-bold text-indigo-200">{poem.title}</h3>
+                                        <div className="flex items-center gap-3">
+                                            <button onClick={function(e) { e.stopPropagation(); removePoem(poem.id); }} className="text-slate-500 hover:text-rose-400 text-xs">حذف</button>
+                                            <span className="text-indigo-400 transform transition-transform duration-300" style={{ transform: poem.isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+                                        </div>
+                                    </div>
+                                    <div className={'transition-all duration-500 ease-in-out overflow-hidden ' + (poem.isExpanded ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0')}>
+                                        <div className="p-4 pt-0 border-t border-white/5 mt-2 text-center text-indigo-100/90 whitespace-pre-wrap leading-loose font-serif text-lg bg-black/20">
+                                            {poem.content}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+            </section>
+
+        </main>
+
+        {/* ============ MODALS ============ */}
+
+        {/* Surprise Modal */}
+        {showSurpriseModal && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-fade-in-up" onClick={function() { setShowSurpriseModal(false); }}>
+                <div className="bg-slate-900 border border-white/10 rounded-3xl max-w-md w-full p-8 text-center relative overflow-hidden" onClick={function(e) { e.stopPropagation(); }}>
+                    <div className={'absolute -top-20 -left-20 w-40 h-40 rounded-full blur-3xl opacity-20 ' + pulseOrbColor}></div>
+                    <div className={'absolute -bottom-20 -right-20 w-40 h-40 rounded-full blur-3xl opacity-20 ' + pulseOrbColor}></div>
+                    <div className="mb-6 flex justify-center">
+                        <div className={'w-20 h-20 rounded-full border-4 border-white/10 flex items-center justify-center animate-pulse ' + pulseOrbColor}>
+                            <span className="text-3xl text-white">🫀</span>
+                        </div>
+                    </div>
+                    <h2 className={'text-2xl font-bold mb-2 ' + stats.deepInsight.color}>{stats.deepInsight.title}</h2>
+                    <div className="text-sm text-slate-300 leading-relaxed mb-6 font-medium">{stats.deepInsight.desc}</div>
+                    <div className="p-4 bg-white/5 rounded-2xl border border-white/10 italic text-cyan-200">{stats.deepInsight.quote}</div>
+                    <button onClick={function() { setShowSurpriseModal(false); }} className="mt-8 text-sm text-slate-400 hover:text-white border border-slate-700 hover:bg-slate-800 px-6 py-2 rounded-full transition-all">أغلق وتأمل</button>
+                </div>
+            </div>
+        )}
+
+        {/* Stats Modal */}
+        {showStatsModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl" onClick={function() { setShowStatsModal(false); }}>
+                <div className="bg-slate-900 w-full max-w-3xl rounded-3xl border border-white/10 shadow-2xl flex flex-col overflow-hidden animate-fade-in-up" onClick={function(e) { e.stopPropagation(); }}>
+                    <div className="p-6 bg-gradient-to-r from-emerald-950 to-slate-900 border-b border-white/10 flex justify-between items-center">
+                        <h3 className="text-xl font-bold text-emerald-400">📊 قراءة عميقة للمسار</h3>
+                        <button onClick={function() { setShowStatsModal(false); }} className="text-slate-400 hover:text-white">✕</button>
+                    </div>
+                    <div className="p-6 overflow-y-auto max-h-[70vh] custom-scrollbar">
+                        <div className="mb-6 p-5 rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 to-transparent text-center">
+                            <h4 className={'text-lg font-bold mb-2 ' + stats.deepInsight.color}>{stats.deepInsight.title}</h4>
+                            <p className="text-sm text-slate-300 mb-3">{stats.deepInsight.desc}</p>
+                            <div className="text-xs text-white/50 bg-black/30 p-3 rounded-xl italic">"{stats.deepInsight.quote}"</div>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                            <div className="bg-white/5 p-4 rounded-2xl border border-white/5 text-center">
+                                <div className="text-xs text-emerald-400 mb-1">مخالفات اليوم</div>
+                                <div className="text-2xl font-mono text-white">{stats.today} <span className="text-xs opacity-50">ريال</span></div>
+                            </div>
+                            <div className="bg-white/5 p-4 rounded-2xl border border-white/5 text-center">
+                                <div className="text-xs text-rose-400 mb-1">إجمالي الأسبوع</div>
+                                <div className="text-2xl font-mono text-rose-300">{stats.weekly} <span className="text-xs opacity-50">ريال</span></div>
+                            </div>
+                            <div className="col-span-2 md:col-span-1 bg-white/5 p-4 rounded-2xl border border-white/5 text-center">
+                                <div className="text-xs text-amber-400 mb-1">أسابيع الكمال</div>
+                                <div className="text-2xl font-mono text-amber-300">{stats.perfectWeeks} <span className="text-xs opacity-50">أسبوع</span></div>
+                            </div>
+                        </div>
+                        <div className="bg-slate-800/50 p-6 rounded-2xl border border-white/10 text-center">
+                            <div className="text-sm text-cyan-400 mb-2">الضريبة التراكمية (كل الأسابيع)</div>
+                            <div className="text-5xl font-mono text-cyan-200 mb-2">{stats.allTime} <span className="text-base opacity-50">ريال</span></div>
+                            <div className="text-xs text-slate-400">إجمالي الأسابيع: {stats.totalWeeks}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* Backup Modal */}
+        {showBackupModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl" onClick={function() { setShowBackupModal(false); }}>
+                <div className="bg-slate-900 w-full max-w-lg rounded-3xl border border-white/10 p-6 animate-fade-in-up" onClick={function(e) { e.stopPropagation(); }}>
+                    <div className="flex justify-between items-center mb-5">
+                        <h3 className="text-xl font-bold text-emerald-400">💾 النسخ الاحتياطي</h3>
+                        <button onClick={function() { setShowBackupModal(false); }} className="text-slate-400 hover:text-white">✕</button>
+                    </div>
+
+                    <div className="bg-white/5 p-4 rounded-2xl mb-4 border border-white/5">
+                        <div className="text-xs text-slate-400 mb-1">آخر نسخة احتياطية</div>
+                        <div className="text-emerald-300 font-bold">{lastBackupInfo ? lastBackupInfo.time : 'لم يتم بعد'}</div>
+                        <div className="text-xs text-slate-500 mt-1">عدد النسخ المحفوظة: {lastBackupInfo ? lastBackupInfo.count : 0}</div>
+                    </div>
+
+                    <div className="text-xs text-slate-400 mb-5 bg-blue-950/30 p-3 rounded-xl border border-blue-500/20">
+                        يتم النسخ الاحتياطي تلقائياً كل يوم الساعة 12:00 ظهراً. البيانات محفوظة محلياً على جهازك وتعمل بدون إنترنت.
+                    </div>
+
+                    <div className="space-y-3">
+                        <button onClick={handleManualBackup} className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition-all">
+                            إنشاء نسخة احتياطية الآن
+                        </button>
+                        <button onClick={function() { Backup.downloadLatest(); }} className="w-full bg-cyan-700 hover:bg-cyan-600 text-white font-bold py-3 rounded-xl transition-all">
+                            تحميل آخر نسخة (JSON)
+                        </button>
+                        <button onClick={function() { restoreInputRef.current.click(); }} className="w-full bg-amber-700 hover:bg-amber-600 text-white font-bold py-3 rounded-xl transition-all">
+                            استعادة من ملف
+                        </button>
+                        <input type="file" accept=".json" ref={restoreInputRef} onChange={handleRestore} className="hidden" />
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* Editor Modal */}
+        {activeEditor && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl" onClick={function() { setActiveEditor(null); }}>
+                <div className="bg-slate-900 w-full max-w-3xl rounded-3xl border border-white/10 shadow-2xl flex flex-col overflow-hidden animate-fade-in-up h-[70vh] max-h-[85vh]" onClick={function(e) { e.stopPropagation(); }}>
+                    <div className="flex justify-between items-center p-5 bg-gradient-to-r from-blue-950/80 to-slate-900 border-b border-white/10">
+                        <h3 className="text-xl font-bold text-cyan-300">{activeEditor.title}</h3>
+                        <button onClick={function() { setActiveEditor(null); }} className="text-slate-400 hover:text-white">✕</button>
+                    </div>
+
+                    {activeEditor.type === 'violationsList' ? (
+                        <div className="flex flex-col h-full bg-slate-900/50">
+                            <div className="p-5 border-b border-white/5 bg-black/20">
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                    <input type="number" min="1" value={newViolationAmount} onChange={function(e) { setNewViolationAmount(e.target.value); }} placeholder="المبلغ (موجب)" className="w-full sm:w-32 bg-white/5 border border-rose-500/30 rounded-xl px-4 py-3 text-white focus:outline-none" />
+                                    <input type="text" value={newViolationNote} onChange={function(e) { setNewViolationNote(e.target.value); }} placeholder="ملاحظة" className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white" />
+                                    <button onClick={addViolation} disabled={!newViolationAmount || parseInt(newViolationAmount) <= 0} className="bg-rose-600 hover:bg-rose-500 text-white px-6 py-3 rounded-xl disabled:opacity-50">إضافة</button>
+                                </div>
+                            </div>
+                            <div className="p-5 overflow-y-auto custom-scrollbar flex-1">
+                                {(currentWeek.violationsList || []).map(function(v) {
+                                    return (
+                                        <div key={v.id} className="flex justify-between items-center bg-white/5 p-4 rounded-2xl mb-3 border border-white/5 group">
+                                            <div><span className="text-rose-400 font-bold ml-3">{v.amount} ريال</span><span className="text-sm text-slate-300">{v.note}</span><span className="text-xs text-slate-500 mr-3">{v.dateStr}</span></div>
+                                            <button onClick={function() { removeViolation(v.id); }} className="text-slate-500 hover:text-rose-500">حذف</button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ) : activeEditor.type === 'newPoem' ? (
+                        <div className="flex flex-col h-full p-6 space-y-4">
+                            <input type="text" value={newPoemTitle} onChange={function(e) { setNewPoemTitle(e.target.value); }} placeholder="عنوان القصيدة..." className="w-full bg-white/5 border border-indigo-500/30 rounded-xl px-4 py-3 text-indigo-200 focus:outline-none text-lg font-bold" />
+                            <textarea value={newPoemContent} onChange={function(e) { setNewPoemContent(e.target.value); }} placeholder="اكتب أبياتك هنا..." className="flex-1 w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white resize-none focus:outline-none leading-loose text-center font-serif text-lg custom-scrollbar" />
+                            <button onClick={handleAddPoem} disabled={!newPoemTitle || !newPoemContent} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-xl disabled:opacity-50 transition-all">حفظ القصيدة</button>
+                        </div>
+                    ) : (
+                        <React.Fragment>
+                            <textarea
+                                className="flex-1 w-full bg-slate-900/50 p-6 text-base font-medium outline-none resize-none leading-relaxed custom-scrollbar"
+                                style={{ color: activeEditor.type === 'item' ? (currentWeek.complianceItems[activeEditor.index] || {}).color || '#e0f2fe' : ((currentWeek[activeEditor.key] || {}).color || '#e0f2fe') }}
+                                value={activeEditor.type === 'item' ? (currentWeek.complianceItems[activeEditor.index] || {}).text || '' : ((currentWeek[activeEditor.key] || {}).text || '')}
+                                autoFocus
+                                onChange={function(e) {
+                                    if (activeEditor.type === 'item') handleItemUpdate(activeEditor.index, 'text', e.target.value);
+                                    else handleComplexUpdate(activeEditor.key, 'text', e.target.value);
+                                }}
+                            />
+                            {/* Color Picker */}
+                            <div className="p-3 border-t border-white/10 flex items-center gap-2 flex-wrap bg-slate-900/80">
+                                <span className="text-xs text-slate-400 ml-2">اللون:</span>
+                                {textColorPalette.map(function(c) {
+                                    var isActive = activeEditor.type === 'item'
+                                        ? (currentWeek.complianceItems[activeEditor.index] || {}).color === c.value
+                                        : ((currentWeek[activeEditor.key] || {}).color || '') === c.value;
+                                    return (
+                                        <button
+                                            key={c.value}
+                                            onClick={function() {
+                                                if (activeEditor.type === 'item') handleItemUpdate(activeEditor.index, 'color', c.value);
+                                                else handleComplexUpdate(activeEditor.key, 'color', c.value);
+                                            }}
+                                            className={'w-7 h-7 rounded-full transition-all hover:scale-110 ' + (isActive ? 'border-[3px] border-white scale-110' : 'border-2 border-white/20')}
+                                            style={{ backgroundColor: c.value }}
+                                            title={c.name}
+                                        />
+                                    );
+                                })}
+                            </div>
+                        </React.Fragment>
+                    )}
+                </div>
+            </div>
+        )}
+
+        {/* Zoomed Image */}
+        {zoomedImage && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 cursor-zoom-out p-4" onClick={function() { setZoomedImage(null); }}>
+                <img src={zoomedImage} className="max-w-full max-h-full object-contain rounded-xl" onClick={function(e) { e.stopPropagation(); }} alt="" />
+            </div>
+        )}
+
+        {/* Theme Modal */}
+        {showThemeModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80" onClick={function() { setShowThemeModal(false); }}>
+                <div className="bg-slate-900 w-full max-w-xl rounded-3xl p-6 border border-white/10 animate-fade-in-up" onClick={function(e) { e.stopPropagation(); }}>
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xl font-bold text-purple-300">🎨 المظهر</h3>
+                        <button onClick={function() { setShowThemeModal(false); }} className="text-slate-400 hover:text-white">✕</button>
+                    </div>
+                    <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageUpload} className="hidden" />
+                    <button onClick={function() { fileInputRef.current.click(); }} className="w-full py-3 mb-4 border-2 border-dashed border-purple-500/30 text-purple-200 rounded-xl hover:bg-purple-900/20 transition-all">صورة من جهازك</button>
+                    <div className="grid grid-cols-2 gap-2">
+                        {themePresets.map(function(theme, i) {
+                            return (
+                                <button key={i} onClick={function() { handleUpdate('background', { type: theme.type, value: theme.value }); setShowThemeModal(false); }} className={'p-3 rounded-xl border border-white/10 text-xs text-white bg-gradient-to-l ' + theme.value + ' hover:scale-[1.02] transition-all'}>
+                                    {theme.name}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* Rank Modal */}
+        {showRankModal && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90" onClick={function() { setShowRankModal(false); }}>
+                <div className="bg-slate-900 border border-amber-500/50 rounded-3xl p-8 text-center max-w-sm animate-fade-in-up" onClick={function(e) { e.stopPropagation(); }}>
+                    <div className="text-6xl mb-4">👑</div>
+                    <h2 className="text-2xl font-bold text-amber-400 mb-2">تم الاعتماد</h2>
+                    <p className="text-slate-300 mb-6">عهد جديد، وبداية جديدة وموثقة.</p>
+                    <button onClick={function() { setShowRankModal(false); }} className="bg-white/10 text-white px-6 py-2 rounded-xl hover:bg-white/20 transition-all">موافق</button>
+                </div>
+            </div>
+        )}
+
+    </div>
+    );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+</script>
+<script>
+(function() {
+    var src = document.getElementById('app-source').textContent;
+    var compiled = Babel.transform(src, { presets: [['react', { runtime: 'classic' }]] }).code;
+    eval(compiled);
+})();
+</script>
+</body>
+</html>
