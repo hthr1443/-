@@ -1,0 +1,11 @@
+{
+  "name": "منظومة عقد صلاح",
+  "short_name": "عقد صلاح",
+  "start_url": "./contract.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "dir": "rtl",
+  "lang": "ar",
+  "icons": []
+}
