@@ -6,10 +6,10 @@
     <title>منظومة عقد صلاح</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0f172a">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="lib/tailwind.js"></script>
+    <script src="lib/react.production.min.js"></script>
+    <script src="lib/react-dom.production.min.js"></script>
+    <script src="lib/babel.min.js"></script>
     <style>
         .custom-scrollbar::-webkit-scrollbar{width:6px}
         .custom-scrollbar::-webkit-scrollbar-track{background:rgba(0,0,0,.1);border-radius:10px}
@@ -150,7 +150,7 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 
-<script type="text/babel">
+<script id="app-source" type="text/plain">
 const { useState, useEffect, useRef, useCallback } = React;
 
 // ============================================================
@@ -980,6 +980,13 @@ function App() {
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+</script>
+<script>
+(function() {
+    var src = document.getElementById('app-source').textContent;
+    var compiled = Babel.transform(src, { presets: [['react', { runtime: 'classic' }]] }).code;
+    eval(compiled);
+})();
 </script>
 </body>
 </html>

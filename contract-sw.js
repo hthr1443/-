@@ -1,11 +1,11 @@
-const CACHE_NAME = 'contract-salah-v2';
+const CACHE_NAME = 'contract-salah-v3';
 const ASSETS = [
   './',
   './contract.html',
-  'https://cdn.tailwindcss.com',
-  'https://unpkg.com/react@18/umd/react.production.min.js',
-  'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js',
-  'https://unpkg.com/@babel/standalone/babel.min.js',
+  './lib/tailwind.js',
+  './lib/react.production.min.js',
+  './lib/react-dom.production.min.js',
+  './lib/babel.min.js',
 ];
 
 self.addEventListener('install', (event) => {
