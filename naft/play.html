@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="theme-color" content="#0d1420">
+<title>مشغّل نفط</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0d1420;--card:#152033;--line:rgba(236,213,154,.18);--gold:#ecd59a;--tx:#eef1f6;--mut:#9aa6b8;--ok:#5fd39a}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--tx);font-family:'Noto Naskh Arabic',system-ui,sans-serif}
+body{min-height:100vh;background:radial-gradient(120% 60% at 50% -10%,#1d2c46 0%,var(--bg) 60%)}
+.wrap{max-width:900px;margin:0 auto;padding:max(14px,env(safe-area-inset-top)) 16px 40px}
+header{display:flex;align-items:center;gap:10px;margin:4px 0 14px}
+header .lg{width:40px;height:40px;border-radius:12px;background:linear-gradient(145deg,#e8c97a,#b8913f);display:grid;place-items:center;font-size:20px;box-shadow:0 6px 18px rgba(232,201,122,.25)}
+header h1{font-size:19px;margin:0;font-weight:700}header small{display:block;color:var(--mut);font-size:13px;font-weight:400}
+.pl{position:relative;width:100%;aspect-ratio:16/9;border-radius:18px;overflow:hidden;background:#000;box-shadow:0 18px 50px rgba(0,0,0,.45);border:1px solid var(--line)}
+.pl #yt,.pl iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.msg{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:20px;background:rgba(10,14,22,.92);z-index:2}
+.msg.on{display:flex}.msg p{margin:0;line-height:1.9;color:#dfe5ee}
+.ti{font-size:17px;font-weight:700;margin:14px 2px 4px;line-height:1.7}.sub{color:var(--mut);font-size:13px;margin:0 2px 10px}
+.ctl{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 4px}
+button,.btn{font:inherit;font-size:15px;color:var(--tx);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:9px 16px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px;min-height:42px}
+button:active,.btn:active{transform:scale(.97)}
+.pri{background:linear-gradient(145deg,#ecd59a,#c9a24f);color:#1b1407;border:0;font-weight:700}
+.sec{margin:22px 0 8px;color:var(--gold);font-size:14px;font-weight:600}
+.list{display:grid;gap:8px}
+.it{display:flex;align-items:center;gap:10px;width:100%;border-radius:14px;padding:10px 12px;text-align:right;justify-content:flex-start}
+.it b{width:34px;height:34px;flex:0 0 34px;border-radius:10px;background:rgba(236,213,154,.12);display:grid;place-items:center;color:var(--gold)}
+.it span{flex:1}.it em{font-style:normal;color:var(--mut);font-size:12px}
+.it.cur{border-color:var(--gold);background:rgba(236,213,154,.1)}.it.done b{background:rgba(95,211,154,.18);color:var(--ok)}
+.bar{height:4px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:6px}.bar i{display:block;height:100%;background:var(--gold);width:0}
+.add{display:flex;gap:8px;margin-top:6px}.add input{flex:1;min-width:0;font:inherit;font-size:15px;color:var(--tx);background:var(--card);border:1px solid var(--line);border-radius:14px;padding:0 14px;height:46px;direction:ltr;text-align:left}
+.note{color:var(--mut);font-size:12.5px;line-height:1.9;margin-top:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+ <header><div class="lg">🎬</div><div><h1>مشغّل نفط</h1><small id="sr">يشغّل مقاطع يوتيوب داخل الصفحة ويتذكر وين وقفت</small></div></header>
+ <div class="pl"><div id="yt"></div><div class="msg" id="msg"><p id="mt"></p><a class="btn pri" id="mo" target="_blank" rel="noopener noreferrer">▶ افتح في يوتيوب</a></div></div>
+ <div class="ti" id="ti">—</div><div class="sub" id="st"></div>
+ <div class="ctl"><button id="b10">⏪ ١٠</button><button class="pri" id="pp">⏯ تشغيل</button><button id="f10">١٠ ⏩</button><button id="sp">⚡ ١×</button><a class="btn" id="ex" target="_blank" rel="noopener noreferrer">↗ يوتيوب</a></div>
+ <div class="bar"><i id="pb"></i></div>
+ <div id="ls"></div>
+ <div class="sec">🔗 شغّل أي مقطع</div>
+ <div class="add"><input id="u" type="url" inputmode="url" placeholder="الصق رابط يوتيوب هنا"><button class="pri" id="go">▶</button></div>
+ <p class="note">هذي صفحة تشغيل فقط — ما فيها أي بيانات شخصية، ومكان توقفك ينحفظ في متصفحك هذا. لو صاحب المقطع منع تشغيله خارج يوتيوب، يطلع لك زر يفتحه في يوتيوب.</p>
+</div>
+<script>
+(function(){'use strict';
+var Q=new URLSearchParams(location.search),$=function(i){return document.getElementById(i)};
+function yid(u){u=String(u||'').trim();if(/^[\w-]{11}$/.test(u))return u;var m=u.match(/(?:youtu\.be\/|[?&]v=|shorts\/|embed\/|live\/)([\w-]{11})/);return m?m[1]:null}
+function lid(u){var m=String(u||'').match(/[?&]list=([\w-]+)/);return m?m[1]:null}
+function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){return null}}
+var IDS=(Q.get('ids')||'').split(',').map(yid).filter(Boolean),NAMES=(Q.get('names')||'').split('|'),SER=Q.get('s')||'',LIST=Q.get('list')||null;
+var cur=yid(Q.get('v'))||(IDS[+(Q.get('i')||0)]||IDS[0])||null,T0=parseInt(Q.get('t')||'0',10)||0,P=null,ready=false,rate=1,RATES=[1,1.25,1.5,1.75,2];
+if(SER)$('sr').textContent=SER;
+function title(id){var i=IDS.indexOf(id);if(i>=0)return (NAMES[i]&&NAMES[i].trim())||('الدرس '+(i+1));return Q.get('title')||'مقطع يوتيوب'}
+function ytUrl(id){return 'https://www.youtube.com/watch?v='+id+(LIST?'&list='+LIST:'')}
+function msg(t,id){$('mt').textContent=t;$('mo').href=ytUrl(id||cur);$('msg').classList.add('on')}
+function draw(){if(!cur){$('ti').textContent='الصق رابط يوتيوب تحت وابدأ';return}$('ti').textContent=title(cur);$('ex').href=ytUrl(cur);
+ var i=IDS.indexOf(cur);$('st').textContent=i>=0?('الدرس '+(i+1)+' من '+IDS.length+(SER?' · '+SER:'')):'';
+ if(!IDS.length){$('ls').innerHTML='';return}
+ var h='<div class="sec">📋 الدروس</div><div class="list">';IDS.forEach(function(id,k){var d=ls('naftp.done.'+id)==='1',p=+(ls('naftp.pos.'+id)||0),du=+(ls('naftp.dur.'+id)||0);
+  h+='<button class="it'+(id===cur?' cur':'')+(d?' done':'')+'" data-i="'+k+'"><b>'+(d?'✓':(k+1))+'</b><span>'+esc(title(id))+(p>5&&!d&&du?'<div class="bar"><i style="width:'+Math.min(100,p/du*100)+'%"></i></div>':'')+'</span><em>'+(id===cur?'▶ الآن':(d?'خلّصته':''))+'</em></button>'});
+ $('ls').innerHTML=h+'</div>'}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function start(id){var p=+(ls('naftp.pos.'+id)||0),d=ls('naftp.done.'+id)==='1';return id===yid(Q.get('v'))&&T0?T0:(d?0:Math.max(0,Math.floor(p)-3))}
+function play(id){if(!id)return;cur=id;$('msg').classList.remove('on');draw();if(ready&&P){P.loadVideoById({videoId:id,startSeconds:start(id)})}try{history.replaceState(null,'','?'+(function(){var q=new URLSearchParams(location.search);q.set('v',id);q.delete('t');return q.toString()})())}catch(e){}}
+window.onYouTubeIframeAPIReady=function(){
+ var pv={playsinline:1,rel:0,modestbranding:1,origin:location.origin,widget_referrer:location.href};if(cur)pv.start=start(cur);if(LIST&&!IDS.length){pv.listType='playlist';pv.list=LIST}
+ P=new YT.Player('yt',{width:'100%',height:'100%',videoId:cur||undefined,playerVars:pv,events:{
+  onReady:function(){ready=true;try{P.setPlaybackRate(rate)}catch(e){}},
+  onStateChange:function(e){if(e.data===1){$('pp').textContent='⏸ إيقاف'}else{$('pp').textContent='⏯ تشغيل'}
+   if(e.data===0&&cur){ls('naftp.done.'+cur,'1');ls('naftp.pos.'+cur,'0');var i=IDS.indexOf(cur);draw();if(i>=0&&i<IDS.length-1)setTimeout(function(){play(IDS[i+1])},1500)}
+   try{var vd=P.getVideoData&&P.getVideoData();if(vd&&vd.video_id&&vd.video_id!==cur&&!IDS.length){cur=vd.video_id;draw()}}catch(x){}},
+  onError:function(e){var c=+e.data;msg(c===101||c===150?'صاحب المقطع منع تشغيله خارج يوتيوب — تقدر تشوفه في يوتيوب نفسه.':(c===100?'المقطع محذوف أو خاص.':'ما قدرت أشغّل المقطع هنا (خطأ '+c+').'),cur)}}})};
+setInterval(function(){if(!ready||!P||!cur)return;try{var t=P.getCurrentTime(),d=P.getDuration();if(t>2){ls('naftp.pos.'+cur,String(Math.floor(t)))}if(d>0)ls('naftp.dur.'+cur,String(Math.floor(d)));$('pb').style.width=(d?t/d*100:0)+'%';if(d&&t/d>.95&&ls('naftp.done.'+cur)!=='1'){ls('naftp.done.'+cur,'1');draw()}}catch(e){}},2000);
+$('pp').onclick=function(){if(!P||!ready)return;try{P.getPlayerState()===1?P.pauseVideo():P.playVideo()}catch(e){}};
+$('b10').onclick=function(){try{P.seekTo(Math.max(0,P.getCurrentTime()-10),true)}catch(e){}};
+$('f10').onclick=function(){try{P.seekTo(P.getCurrentTime()+10,true)}catch(e){}};
+$('sp').onclick=function(){rate=RATES[(RATES.indexOf(rate)+1)%RATES.length];try{P.setPlaybackRate(rate)}catch(e){}this.textContent='⚡ '+rate.toLocaleString('ar')+'×'};
+$('ls').onclick=function(e){var b=e.target.closest('[data-i]');if(b)play(IDS[+b.dataset.i])};
+function goUrl(){var v=$('u').value,id=yid(v),l=lid(v);if(!id&&!l){$('u').style.borderColor='#e66';return}$('u').style.borderColor='';$('u').value='';if(l&&!IDS.length){LIST=l}if(id)play(id);else if(ready&&P){P.loadPlaylist({listType:'playlist',list:l})}}
+$('go').onclick=goUrl;$('u').onkeydown=function(e){if(e.key==='Enter')goUrl()};
+draw();var s=document.createElement('script');s.src='https://www.youtube.com/iframe_api';s.onerror=function(){msg('ما قدرت أحمّل يوتيوب — تأكد من النت.')};document.head.appendChild(s);
+setTimeout(function(){if(!ready&&cur)msg('يوتيوب تأخر في التحميل… تقدر تفتحه مباشرة.',cur)},15000);
+})();
+</script>
+</body>
+</html>
