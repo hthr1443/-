@@ -8901,7 +8901,7 @@ async function diag(){
  var rec=!okL?'لازم إنترنت أول مرة عشان يتحمّل المحرك.':g.ok?'جهازك يدعم كرت الشاشة — شغّل «'+((dm||4)>=6?'متوازن':'خفيف')+'».':'بيشتغل على المعالج — الأنسب لك «'+((dm||4)>=6?'متوازن':'خفيف')+'».';
  return{rows:r,rec:rec}}
 window.NaftLLM={ensure:ensure,chat:llmChat,state:function(){return L},models:MODELS,cancel:cancelLoad,diag:diag,open:function(){return window.NaftClaude?NaftClaude.open():openLLM()},openLocal:function(){return openLLM()},sub:function(f){subs.push(f)}};
-window.NaftClaudeAPI={has:hasClaude,inApp:function(){return !!SMP},key:function(){return CK.key},model:function(){return CK.model},set:function(k,m){if(k!=null){k?LS.set('naft.claude.key',k):LS.del('naft.claude.key')}if(m)LS.set('naft.claude.model',m);emit()},test:function(){return chat({claudeOnly:true,messages:[{role:'user',content:'قل: متصل ✓ ثم جملة قصيرة عن نفسك.'}],maxTokens:120})},sampleReady:getSample,emit:function(){emit()}};
+window.NaftClaudeAPI={has:hasClaude,inApp:function(){return !!SMP},key:function(){return CK.key},model:function(){return CK.model},set:function(k,m){if(k!=null){k?LS.set('naft.claude.key',k):LS.del('naft.claude.key')}if(m)LS.set('naft.claude.model',m);emit()},test:function(){return chat({claudeOnly:true,messages:[{role:'user',content:'قل: متصل ✓ ثم جملة قصيرة عن نفسك.'}],maxTokens:120})},sampleReady:getSample,emit:function(){emit()},dsKey:function(){return DK.key},prov:prov,setDs:function(k,m){if(k!=null){k?LS.set('naft.ds.key',k):LS.del('naft.ds.key')}if(m)LS.set('naft.ds.model',m);emit()},setProv:function(p){LS.set('naft.ai.prov',p);emit()}};
 /* ربط كل أدوات الذكاء الموجودة في نفط بالمحرك الجديد، مع الرجوع للمحرك المحلي الخفيف إذا ما شغّلت النموذج */
 var DS=window.NaftDeepSeek||(window.NaftDeepSeek={});
 var fallback=DS.chat;
@@ -8925,12 +8925,31 @@ async function sampleChat(sm,o){
 
 /* ===== Claude من أي مكان: داخل تطبيق Claude بدون مفتاح، وبره (الجوال/الموقع) بمفتاح API حقك ينحفظ في جهازك بس ===== */
 var CK={get key(){return LS.get('naft.claude.key')||''},get model(){return LS.get('naft.claude.model')||'claude-sonnet-5-5'}};
-function hasClaude(){return !!(SMP||CK.key)}
+var DK={get key(){return LS.get('naft.ds.key')||''},get model(){return LS.get('naft.ds.model')||'deepseek-v4-flash'}};
+function anyKey(){return CK.key||DK.key}
+function prov(){var p=LS.get('naft.ai.prov')||'';if(p==='deepseek'&&DK.key)return 'ds';if(p==='claude'&&CK.key)return 'cl';return CK.key?'cl':(DK.key?'ds':'')}
+function dsOn(o){return LS.get('naft.ai.prov')==='deepseek'&&!!DK.key&&!msgImages(o||{}).length}
+function hasClaude(){return !!(SMP||CK.key||DK.key)}
+async function dsChat(o,out){
+ var msgs=out.slice();if(o.system)msgs.unshift({role:'system',content:o.system});
+ var cands=[DK.model,'deepseek-v4-flash','deepseek-flash'].filter(function(x,i,a){return x&&a.indexOf(x)===i}),r=null,used='';
+ for(var i=0;i<cands.length;i++){
+  var body={model:cands[i],max_tokens:Math.min(8000,Math.max(300,o.maxTokens||1500)),messages:msgs,stream:true};if(o.temperature!=null)body.temperature=Math.min(2,o.temperature);
+  try{r=await fetch('https://api.deepseek.com/chat/completions',{method:'POST',signal:o.signal,headers:{'content-type':'application/json','authorization':'Bearer '+DK.key},body:JSON.stringify(body)})}catch(e){if(e&&e.name==='AbortError')throw e;var ne=new Error('ما قدرت أوصل DeepSeek — الاتصال محجوب أو ما فيه نت');ne.code='api';throw ne}
+  used=cands[i];if(r.ok||(r.status!==400&&r.status!==404))break}
+ if(!r.ok){var t='';try{t=(await r.json()).error.message}catch(e){}var er=new Error(r.status===401?'مفتاح DeepSeek غلط أو انتهى':r.status===402?'رصيد DeepSeek خلص — اشحن من موقعهم':r.status===429?'وصلت الحد — جرّب بعد شوي':'DeepSeek: '+(t||r.status));er.code=r.status===429?'rate_limited':'api';throw er}
+ if(used!==DK.model)LS.set('naft.ds.model',used);
+ window.__naftLastModel={asked:used,applied:used,via:'deepseek'};
+ var rd=r.body.getReader(),dec=new TextDecoder(),buf='',txt='';
+ while(true){var c=await rd.read();if(c.done)break;buf+=dec.decode(c.value,{stream:true});var ls=buf.split('\n');buf=ls.pop();
+  for(var k=0;k<ls.length;k++){var L0=ls[k].trim();if(L0.indexOf('data:')!==0)continue;L0=L0.slice(5).trim();if(L0==='[DONE]')continue;try{var ev=JSON.parse(L0);var dl=ev.choices&&ev.choices[0]&&ev.choices[0].delta;if(dl&&dl.content){txt+=dl.content;if(o.onDelta)o.onDelta(txt)}}catch(x){}}}
+ if(!txt.trim()){var ee=new Error('DeepSeek ما رجّع رد');ee.code='empty';throw ee}
+ if(o.onDelta)o.onDelta(txt);return txt}
 function blobB64(b){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(){var u=String(r.result);res({mt:(u.match(/^data:([^;]+)/)||[])[1]||'image/jpeg',d:u.slice(u.indexOf(',')+1)})};r.onerror=rej;r.readAsDataURL(b)})}
 async function apiChat(o){
  var ms=(o.messages||[{role:'user',content:o.prompt||''}]).map(function(m){return{role:m.role==='assistant'?'assistant':'user',content:String(m.content||'')}}).filter(function(m){return m.content});
  var out=[];ms.forEach(function(m){var l=out[out.length-1];if(l&&l.role===m.role)l.content+='\n\n'+m.content;else out.push(m)});while(out.length&&out[0].role!=='user')out.shift();if(!out.length)throw new Error('empty');
- var aimg=msgImages(o);if(aimg.length){var last=out[out.length-1],parts=[];for(var i=0;i<aimg.length;i++){var b=await blobB64(aimg[i]);parts.push({type:'image',source:{type:'base64',media_type:b.mt,data:b.d}})}parts.push({type:'text',text:last.content});last.content=parts}
+ var aimg=msgImages(o);var pv=prov();if(aimg.length&&CK.key)pv='cl';if(pv==='ds'){if(aimg.length)throw Object.assign(new Error('DeepSeek ما يقرأ الصور — حط مفتاح Claude للصور'),{code:'api'});return dsChat(o,out)}if(aimg.length){var last=out[out.length-1],parts=[];for(var i=0;i<aimg.length;i++){var b=await blobB64(aimg[i]);parts.push({type:'image',source:{type:'base64',media_type:b.mt,data:b.d}})}parts.push({type:'text',text:last.content});last.content=parts}
  window.__naftLastModel={asked:o.model||CK.model,applied:o.model||CK.model,via:'key'};var body={model:o.model||CK.model,max_tokens:Math.min(4000,Math.max(300,o.maxTokens||1500)),messages:out,stream:true};if(o.system)body.system=o.system;if(o.temperature!=null)body.temperature=Math.min(1,o.temperature);
  var r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:o.signal,headers:{'content-type':'application/json','x-api-key':CK.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify(body)});
  if(!r.ok){var t='';try{t=(await r.json()).error.message}catch(e){}var er=new Error(r.status===401?'مفتاح Claude غلط أو انتهى':r.status===429?'وصلت الحد المسموح — جرّب بعد شوي':r.status===529||r.status===503?'Claude مشغول الحين — جرّب بعد شوي':'Claude: '+(t||r.status));er.code=r.status===429?'rate_limited':'api';throw er}
@@ -8942,10 +8961,10 @@ async function chat(o){
  o=o||{};
  var sm=await getSample();
  var lastE=null;
- if(sm&&!o._noSmp){try{return await sampleChat(sm,o)}catch(e){if(e&&e.name==='AbortError')throw e;lastE=e;
+ if(sm&&!o._noSmp&&!dsOn(o)){try{return await sampleChat(sm,o)}catch(e){if(e&&e.name==='AbortError')throw e;lastE=e;
   if(e&&e.code==='rate_limited'&&!(o.signal&&o.signal.aborted)){await new Promise(function(r){setTimeout(r,2500)});try{return await sampleChat(sm,o)}catch(e2){if(e2&&e2.name==='AbortError')throw e2;lastE=e2;e=e2}}
-  var weakOK=o.allowWeak||want()||(CK.key&&!o._noKey)||(e&&(e.code==='not_granted'||e.code==='unavailable'));if(!o.claudeOnly&&weakOK)smpFail(e);else if(e&&(e.code==='not_granted'||e.code==='unavailable')){SMP=null;smpP=Promise.resolve(null);emit()}}}
- if(CK.key&&!o._noKey){try{return await apiChat(o)}catch(e){if(e&&e.name==='AbortError')throw e;lastE=e;if(o.onDelta)o.onDelta('');if(!o.claudeOnly)toast(e.message+' — استخدمت محرك بديل')}}
+  var weakOK=o.allowWeak||want()||(anyKey()&&!o._noKey)||(e&&(e.code==='not_granted'||e.code==='unavailable'));if(!o.claudeOnly&&weakOK)smpFail(e);else if(e&&(e.code==='not_granted'||e.code==='unavailable')){SMP=null;smpP=Promise.resolve(null);emit()}}}
+ if(anyKey()&&!o._noKey){try{return await apiChat(o)}catch(e){if(e&&e.name==='AbortError')throw e;lastE=e;if(o.onDelta)o.onDelta('');if(!o.claudeOnly)toast(e.message+' — استخدمت محرك بديل')}}
  if(o.claudeOnly||(sm&&!o._noSmp&&lastE&&lastE.code!=='not_granted'&&lastE.code!=='unavailable'&&!o.allowWeak&&!want())){var ce=new Error(lastE?(lastE.code==='rate_limited'?'Claude مشغول الحين — جرّب بعد شوي':(lastE.message||'Claude ما ردّ')):'Claude مو متاح هنا');ce.code=lastE?(lastE.code||'claudefail'):'noclaude';throw ce}
  if(want()){
   try{return await llmChat(o)}catch(e){if(e&&e.name==='AbortError')throw e;if(o.onDelta)o.onDelta('');toast('الذكاء المحلي: '+(L.err||e.message)+' — استخدمت المحرك الخفيف بدلًا منه')}
@@ -8959,8 +8978,8 @@ async function smp(prompt,o){
  o=o||{};var text='';
  var sm=await getSample();
  var hasImg=!!(o.images&&o.images.length),tried=false;
- if(sm){try{var lim={};try{lim=sm.limits?(await sm.limits())||{}:{}}catch(x){}if(!hasImg||lim.images!==false){tried=true;return await chat({messages:[{role:'user',content:prompt}],signal:o.signal,images:hasImg?o.images:null,claudeOnly:true,_noKey:true,onDelta:function(t){if(o.onText)o.onText({text:t})}})}}catch(e){if(e&&e.name==='AbortError')throw e;var hard=e&&e.code!=='not_granted'&&e.code!=='unavailable';if((o.claudeOnly||(hard&&!hasImg&&!o.allowWeak&&!want()))&&!CK.key)throw e;if(!o.claudeOnly)smpFail(e)}}
- if(CK.key){try{return await apiChat({messages:[{role:'user',content:prompt}],signal:o.signal,images:o.images,onDelta:function(t){if(o.onText)o.onText({text:t})}})}catch(e){if(e&&e.name==='AbortError')throw e;if(o.claudeOnly)throw e}}
+ if(sm&&!dsOn({images:o.images})){try{var lim={};try{lim=sm.limits?(await sm.limits())||{}:{}}catch(x){}if(!hasImg||lim.images!==false){tried=true;return await chat({messages:[{role:'user',content:prompt}],signal:o.signal,images:hasImg?o.images:null,claudeOnly:true,_noKey:true,onDelta:function(t){if(o.onText)o.onText({text:t})}})}}catch(e){if(e&&e.name==='AbortError')throw e;var hard=e&&e.code!=='not_granted'&&e.code!=='unavailable';if((o.claudeOnly||(hard&&!hasImg&&!o.allowWeak&&!want()))&&!anyKey())throw e;if(!o.claudeOnly)smpFail(e)}}
+ if(anyKey()){try{return await apiChat({messages:[{role:'user',content:prompt}],signal:o.signal,images:o.images,onDelta:function(t){if(o.onText)o.onText({text:t})}})}catch(e){if(e&&e.name==='AbortError')throw e;if(o.claudeOnly)throw e}}
  if(o.claudeOnly){var ce=new Error(tried?'Claude مشغول الحين — جرّب بعد شوي':'Claude مو متاح هنا');ce.code=tried?'claudefail':'noclaude';throw ce}
  if(o.images&&o.images.length&&window.NaftOCR){var r=await NaftOCR.recognize(o.images[0],{lang:'ara+eng'});text=r.paragraphs||r.text||'';
   if(/انسخ كل النص|استخرج النص/.test(prompt)||!want()){if(o.onText)o.onText({text:text});return text}
@@ -10112,16 +10131,22 @@ var OV=null;
 var MODELS=[['claude-sonnet-5-5','Sonnet 5.5 — الموصى به (ذكي وسريع)'],['claude-haiku-5-5','Haiku 5.5 — الأسرع والأرخص'],['claude-opus-5-5','Opus 5.5 — الأقوى للمواد الصعبة']];
 async function openPanel(){var api=A();if(!api)return;try{await Promise.race([api.sampleReady(),new Promise(function(r){setTimeout(r,1500)})])}catch(e){}
  if(!OV){OV=document.createElement('div');OV.id='clOv';OV.innerHTML='<div class="cl" role="dialog" aria-modal="true" aria-label="ربط Claude"></div>';document.body.appendChild(OV);OV.addEventListener('click',function(e){if(e.target===OV)OV.classList.remove('on')})}
- var c=OV.firstChild,inApp=api.inApp(),key=api.key();
+ var c=OV.firstChild,inApp=api.inApp(),key=api.key(),dk=api.dsKey(),pv=api.prov();
  c.innerHTML='<div class="gp"></div><h3>✨ Claude في نفط<span class="sp"></span><button class="x" data-x aria-label="إغلاق">✕</button></h3>'+
  (inApp?'<div class="st ok"><b>✓ متصل مباشرة بـ Claude</b><div class="mu" style="margin:4px 0 0">أنت فاتح نفط من داخل Claude، فالذكاء شغّال من اشتراكك بدون أي مفتاح.</div></div>':
   key?'<div class="st ok"><b>✓ متصل بـ Claude بمفتاحك</b><div class="mu" style="margin:4px 0 0">النموذج: '+esc(api.model())+'</div></div>':
-  '<div class="st no"><b>Claude غير متصل هنا</b><div class="mu" style="margin:4px 0 0">أسهل طريقة: افتح نفط من رابطه داخل Claude ويشتغل لحاله. أو حط مفتاح API تحت عشان يشتغل من الملف أو الموقع.</div></div>')+
+  dk?'<div class="st ok"><b>✓ متصل بـ DeepSeek بمفتاحك</b></div>':'<div class="st no"><b>الذكاء غير متصل هنا</b><div class="mu" style="margin:4px 0 0">أسهل طريقة: افتح نفط من رابطه داخل Claude ويشتغل لحاله. أو حط مفتاح API تحت عشان يشتغل من الملف أو الموقع.</div></div>')+
  '<p class="mu">Claude صار هو الذكاء في كل نفط: المساعد، الشرح والتلخيص والأسئلة، البطاقات، نقاط التفتيش، الترجمة، قراءة الصفحات المصوّرة، و«رفيق القراءة» صفحة بصفحة. والمحرك المحلي صار بس احتياط لو ما فيه Claude ولا نت.</p>'+
  (inApp?'':(key?'':'<div class="st" style="margin:8px 0"><b>🔑 خطوتين بس:</b><div class="mu" style="margin:4px 0 0">١) افتح Claude Console واضغط <b>Create key</b> وانسخ المفتاح (يبدأ بـ sk-ant-).<br>٢) ارجع هنا واضغط <b>📋 الصق وأربط</b> — خلاص.</div></div><div class="row"><a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener noreferrer" style="flex:1;min-height:46px;border-radius:14px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#67e8f9,#a78bfa);color:#06101c;font-weight:800">🔑 جيب مفتاحك</a><button data-a="paste">📋 الصق وأربط</button></div>')+'<label for="clK">مفتاح Claude API</label><input id="clK" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" value="'+esc(key)+'">'+
   '<label for="clM">النموذج</label><select id="clM">'+MODELS.map(function(m){return '<option value="'+m[0]+'"'+(api.model()===m[0]?' selected':'')+'>'+m[1]+'</option>'}).join('')+'</select>'+
   '<div class="row"><button class="p" data-a="save">حفظ وتجربة</button>'+(key?'<button data-a="del">حذف المفتاح</button>':'')+'</div>'+
   '<p class="mu">المفتاح ينحفظ في جهازك بس، وما ينرسل إلا لـ Anthropic. تطلعه من Claude Console (لوحة مطوّرين Anthropic)، والاستخدام عن طريقه مدفوع حسب الاستهلاك ومنفصل عن اشتراكك. ولا تشارك المفتاح مع أحد.</p>')+
+ (inApp?'':'<div style="border-top:1px solid rgba(255,255,255,.14);margin:16px 0 10px"></div><h3 style="font-size:17px;margin:0 0 6px">🐋 مفتاح DeepSeek (بديل أرخص)</h3>'+
+  (dk?'<div class="st ok"><b>✓ مفتاح DeepSeek محفوظ</b></div>':'<div class="st" style="margin:8px 0"><b>🔑 أقصر طريقة:</b><div class="mu" style="margin:4px 0 0">١) اضغط <b>🐋 جيب مفتاحك</b> وسجّل دخول، ثم <b>Create new API key</b> وانسخه.<br>٢) ارجع هنا واضغط <b>📋 الصق وأربط</b>. (لازم تشحن رصيد صغير من Top up)</div></div><div class="row"><a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer" style="flex:1;min-height:46px;border-radius:14px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#60a5fa,#34d399);color:#06101c;font-weight:800">🐋 جيب مفتاحك</a><button data-a="dpaste">📋 الصق وأربط</button></div>')+
+  '<label for="dsK">مفتاح DeepSeek API</label><input id="dsK" type="password" autocomplete="off" spellcheck="false" placeholder="sk-…" value="'+esc(dk)+'">'+
+  '<div class="row"><button class="p" data-a="dsave">حفظ وتجربة</button>'+(dk?'<button data-a="ddel">حذف المفتاح</button>':'')+'</div>'+
+  ((key&&dk)?'<label>الشغّال الحين (واحد يشتغل والثاني يطفي)</label><div class="row"><button data-a="pv-cl"'+(pv==='cl'?' class="p"':'')+'>Claude'+(pv==='cl'?' ✓ شغّال':'')+'</button><button data-a="pv-ds"'+(pv==='ds'?' class="p"':'')+'>DeepSeek'+(pv==='ds'?' ✓ شغّال':'')+'</button></div>':'')+
+  '<p class="mu">المفتاح ينحفظ في جهازك بس. ملاحظة: DeepSeek نص فقط (ما يقرأ الصور)، فلو عندك مفتاح Claude يستخدمه تلقائيًا للصور.</p>')+
  (inApp?'<div class="row"><button class="p" data-a="test">جرّب Claude</button></div>':'')+'<div class="res" id="clR"></div>'+
  '<details><summary>متقدم: نموذج محلي بدون إنترنت</summary><p class="mu">لو تبي ذكاء يشتغل بدون نت أبدًا (أضعف من Claude بكثير)، تقدر تحمّل نموذج Qwen على جهازك.</p><div class="row"><button data-a="local">إعداد النموذج المحلي</button></div></details>';
  OV.classList.add('on');
@@ -10129,11 +10154,15 @@ async function openPanel(){var api=A();if(!api)return;try{await Promise.race([ap
   if(a==='local'){OV.classList.remove('on');window.NaftLLM&&NaftLLM.openLocal();return}
   if(a==='del'){api.set('',null);toast('انحذف المفتاح');openPanel();return}
   if(a==='paste'){var pk='';try{pk=(await navigator.clipboard.readText()||'').trim()}catch(x){}var m2=pk.match(/sk-ant-[A-Za-z0-9_\-]+/);if(!m2){R.textContent=pk?'⚠️ اللي في الحافظة مو مفتاح Claude — انسخ المفتاح (يبدأ بـ sk-ant-) وجرّب':'⚠️ ما قدرت أقرأ الحافظة — الصق المفتاح في الخانة تحت بنفسك واضغط «حفظ وتجربة»';var ki=$('#clK',c);if(ki)ki.focus();return}$('#clK',c).value=m2[0];a='save'}
-  if(a==='save'){var k=($('#clK',c).value||'').trim();var km=k.match(/sk-ant-[A-Za-z0-9_\-]+/);if(km)k=km[0];if(k&&!/^sk-ant-/.test(k)){R.textContent='⚠️ المفتاح لازم يبدأ بـ sk-ant-';return}api.set(k,$('#clM',c).value);if(!k){openPanel();return}}
-  if(a==='save'||a==='test'){b.disabled=true;R.textContent='أكلّم Claude…';try{var t=await api.test();R.textContent='✓ '+t}catch(x){R.textContent='⚠️ '+(x.message||x)}b.disabled=false;if(a==='save')setTimeout(openPanel,1600)}};
+  if(a==='save'){var k=($('#clK',c).value||'').trim();var km=k.match(/sk-ant-[A-Za-z0-9_\-]+/);if(km)k=km[0];if(k&&!/^sk-ant-/.test(k)){R.textContent='⚠️ المفتاح لازم يبدأ بـ sk-ant-';return}api.set(k,$('#clM',c).value);if(!k){openPanel();return}api.setProv('claude')}
+  if(a==='ddel'){api.setDs('',null);if(api.prov()!=='ds')api.setProv(api.key()?'claude':'');toast('انحذف مفتاح DeepSeek');openPanel();return}
+  if(a==='pv-cl'||a==='pv-ds'){api.setProv(a==='pv-ds'?'deepseek':'claude');toast(a==='pv-ds'?'شغّلت DeepSeek وأطفيت Claude':'شغّلت Claude وأطفيت DeepSeek');openPanel();return}
+  if(a==='dpaste'){var dp='';try{dp=(await navigator.clipboard.readText()||'').trim()}catch(x){}var dm=dp.match(/sk-(?!ant-)[A-Za-z0-9_\-]{20,}/);if(!dm){R.textContent=/sk-ant-/.test(dp)?'⚠️ هذا مفتاح Claude مو DeepSeek':dp?'⚠️ اللي في الحافظة مو مفتاح DeepSeek (يبدأ بـ sk-)':'⚠️ ما قدرت أقرأ الحافظة — الصق المفتاح في الخانة بنفسك واضغط «حفظ وتجربة»';var di=$('#dsK',c);if(di)di.focus();return}$('#dsK',c).value=dm[0];a='dsave'}
+  if(a==='dsave'){var dk2=($('#dsK',c).value||'').trim();var dm2=dk2.match(/sk-(?!ant-)[A-Za-z0-9_\-]{20,}/);if(dm2)dk2=dm2[0];if(dk2&&!dm2){R.textContent=/^sk-ant-/.test(dk2)?'⚠️ هذا مفتاح Claude — حطه فوق':'⚠️ مفتاح DeepSeek يبدأ بـ sk-';return}api.setDs(dk2,null);if(!dk2){openPanel();return}api.setProv('deepseek')}
+  if(a==='save'||a==='test'||a==='dsave'){b.disabled=true;R.textContent=a==='dsave'?'أكلّم DeepSeek…':'أكلّم Claude…';try{var t=await api.test();R.textContent='✓ '+t}catch(x){R.textContent='⚠️ '+(x.message||x)}b.disabled=false;if(a==='save'||a==='dsave')setTimeout(openPanel,1600)}};
 }
 window.NaftClaude={open:openPanel};
- setTimeout(function nudge(){try{var api=A();if(!api||api.inApp()||api.key())return;if(/claudeusercontent|claude\.ai/.test(location.hostname))return;if(document.documentElement.classList.contains('gate-on')){setTimeout(nudge,5000);return}if(document.getElementById('keyNudge'))return;var lt=+(localStorage.getItem('naft.keyNudge')||0);if(Date.now()-lt<3*864e5)return;var ch=document.createElement('div');ch.id='keyNudge';ch.setAttribute('style','position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 86px);transform:translateX(-50%);z-index:9999;display:flex;gap:8px;align-items:center;background:rgba(18,22,30,.95);color:#ecd59a;border:1px solid rgba(236,213,154,.4);border-radius:999px;padding:8px 10px 8px 16px;font:600 14px \'Noto Naskh Arabic\',system-ui;direction:rtl;box-shadow:0 10px 30px rgba(0,0,0,.4)');ch.innerHTML='<span>🔑 اربط Claude بخطوتين عشان تشتغل الشخصيات والمساعد</span><button style="border:0;border-radius:999px;padding:6px 14px;background:#ecd59a;color:#1b1407;font:inherit">اربط</button><button aria-label="إغلاق" style="border:0;background:none;color:#9aa6b8;font-size:18px">✕</button>';var bs=ch.querySelectorAll('button');bs[0].onclick=function(){ch.remove();openPanel()};bs[1].onclick=function(){try{localStorage.setItem('naft.keyNudge',String(Date.now()))}catch(e){}ch.remove()};document.body.appendChild(ch)}catch(e){}},6000);
+ setTimeout(function nudge(){try{var api=A();if(!api||api.inApp()||api.key()||api.dsKey())return;if(/claudeusercontent|claude\.ai/.test(location.hostname))return;if(document.documentElement.classList.contains('gate-on')){setTimeout(nudge,5000);return}if(document.getElementById('keyNudge'))return;var lt=+(localStorage.getItem('naft.keyNudge')||0);if(Date.now()-lt<3*864e5)return;var ch=document.createElement('div');ch.id='keyNudge';ch.setAttribute('style','position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 86px);transform:translateX(-50%);z-index:9999;display:flex;gap:8px;align-items:center;background:rgba(18,22,30,.95);color:#ecd59a;border:1px solid rgba(236,213,154,.4);border-radius:999px;padding:8px 10px 8px 16px;font:600 14px \'Noto Naskh Arabic\',system-ui;direction:rtl;box-shadow:0 10px 30px rgba(0,0,0,.4)');ch.innerHTML='<span>🔑 اربط Claude بخطوتين عشان تشتغل الشخصيات والمساعد</span><button style="border:0;border-radius:999px;padding:6px 14px;background:#ecd59a;color:#1b1407;font:inherit">اربط</button><button aria-label="إغلاق" style="border:0;background:none;color:#9aa6b8;font-size:18px">✕</button>';var bs=ch.querySelectorAll('button');bs[0].onclick=function(){ch.remove();openPanel()};bs[1].onclick=function(){try{localStorage.setItem('naft.keyNudge',String(Date.now()))}catch(e){}ch.remove()};document.body.appendChild(ch)}catch(e){}},6000);
 
 /* ======================= 🤝 رفيق القراءة: Claude صفحة بصفحة ======================= */
 var on=false;try{on=localStorage.getItem('naft.comp.on')==='1'}catch(e){}
