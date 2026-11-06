@@ -9991,6 +9991,7 @@ if(ms){new MutationObserver(function(){if(!ms.classList.contains('on'))return;se
 /* ملء الشاشة للقارئ الأساسي */
 html.rd-full #side,html.rd-full #dock,html.rd-full #mxPill,html.rd-full #ntl,html.rd-full #dayL,html.rd-full #hFab{display:none!important}
 html.rd-full body .app#app{grid-template-columns:minmax(0,1fr)!important;padding:0!important;gap:0!important}
+html.rd-full,html.rd-full body,html:fullscreen,html:fullscreen body{overscroll-behavior:none!important}
 html.rd-full body #edp.pane{position:fixed!important;inset:0!important;z-index:40!important;border-radius:0!important;margin:0!important;max-width:none!important;width:auto!important;height:auto!important}
 #fsBtn{position:absolute;z-index:45;top:66px;left:12px;width:40px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(16,20,40,.85);color:#fff;font-size:17px;display:none;place-items:center;cursor:pointer}
 @media (min-width:700px){.lb-reading #fsBtn{display:grid}}
@@ -10008,7 +10009,10 @@ var R=document.documentElement;
 function fsReq(on){try{var d=document,el=R;if(on){(el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el)}else if(d.fullscreenElement||d.webkitFullscreenElement){(d.exitFullscreen||d.webkitExitFullscreen).call(d)}}catch(e){}}
 
 /* ======================= ⛶ ملء الشاشة للقارئ ======================= */
-function full(v){var on=v==null?!R.classList.contains('rd-full'):v;R.classList.toggle('rd-full',on);fsReq(on);var b=$('#fsBtn');if(b)b.textContent=on?'🗗':'⛶';setTimeout(function(){dispatchEvent(new Event('resize'))},120)}
+function fsIn(){var d=document;return !!(d.fullscreenElement||d.webkitFullscreenElement)}
+function fsCan(){var d=document;return !!(d.fullscreenEnabled||d.webkitFullscreenEnabled)}
+['fullscreenchange','webkitfullscreenchange'].forEach(function(ev){document.addEventListener(ev,function(){var b=$('#fsBtn');if(b&&R.classList.contains('rd-full'))b.textContent=fsIn()||!fsCan()?'🗗':'⛶'})});
+function full(v){if(v==null&&R.classList.contains('rd-full')&&!fsIn()&&fsCan()){fsReq(true);var b0=$('#fsBtn');if(b0)b0.textContent='🗗';return}var on=v==null?!R.classList.contains('rd-full'):v;R.classList.toggle('rd-full',on);fsReq(on);var b=$('#fsBtn');if(b)b.textContent=on?'🗗':'⛶';setTimeout(function(){dispatchEvent(new Event('resize'))},120)}
 setInterval(function(){var root=$('.lb-reading');if(!root){if(R.classList.contains('rd-full'))R.classList.remove('rd-full');return}
  if(!$('#fsBtn',root)){var b=document.createElement('button');b.id='fsBtn';b.type='button';b.setAttribute('aria-label','ملء الشاشة');b.textContent=R.classList.contains('rd-full')?'🗗':'⛶';b.onclick=function(){full()};root.appendChild(b)}},600);
 
@@ -11314,20 +11318,22 @@ hook();document.addEventListener('click',()=>setTimeout(()=>{const n=document.ge
 (()=>{'use strict';
 const LINK='https://claude.ai/artifact/FFTRfWe89BaFWjr76tMj6x';
 const inClaude=()=>{try{return !!(window.claude&&window.claude.use)}catch(e){return false}};
+const hasAny=()=>{try{return inClaude()||!!(window.NaftClaudeAPI&&NaftClaudeAPI.has())}catch(e){return false}};
 let busy=false;
 function fixA(){const a=document.getElementById('a13');if(!a||busy)return;busy=true;try{
  const ban=a.querySelector('.llm-ban');
  if(ban&&!ban.dataset.v39){ban.dataset.v39=1;
-  if(inClaude())ban.remove();
+  if(hasAny())ban.remove();
   else{ban.innerHTML='<b>✨ Claude بدون مفتاح</b><br>افتح نفط من رابطه في Claude، والذكاء يشتغل على طول بحسابك، بدون مفتاح ولا دفع زيادة. وبياناتك تنتقل بـ«بياناتي ← جهّز ملفات النقل».<br><a class="v39-go" href="'+LINK+'" target="_blank" rel="noopener">افتح نفط في Claude</a><button type="button" class="v39-key">عندي مفتاح</button>';
    ban.querySelector('.v39-key').onclick=()=>{window.NaftClaude?NaftClaude.open():null}}}
  const t=a.querySelector('#a13-autotxt');
  if(t&&inClaude()){const want='Claude معك: يدوّر في ملاحظاتك وكتبك وعقدك بنفسه، ويقدر يحفظ لك ملاحظات واقتراحات.';if(t.textContent!==want)t.textContent=want}
+ else if(t&&hasAny()){const w2='الذكاء الأونلاين معك: يجاوبك ويشرح ويلخّص.';if(t.textContent!==w2)t.textContent=w2}
  else if(t&&/يعمل على جهازك/.test(t.textContent)){t.textContent='المحرك الخفيف يشتغل على جهازك ويبحث في ملاحظاتك. للإجابات الذكية افتح نفط في Claude.'}
 }finally{busy=false}}
 new MutationObserver(fixA).observe(document.body,{childList:true,subtree:true});
 /* كرت «المساعد الذكي» في المزيد */
-(function(){const ms=document.getElementById('msheet');if(!ms)return;new MutationObserver(()=>{if(!ms.classList.contains('on'))return;setTimeout(()=>{ms.querySelectorAll('*').forEach(e=>{if(e.children.length===0&&/^المحرك المحلي$/.test(e.textContent.trim()))e.textContent=inClaude()?'Claude ✓':'افتحه في Claude'})},60)}).observe(ms,{attributes:true,attributeFilter:['class']})})();
+(function(){const ms=document.getElementById('msheet');if(!ms)return;new MutationObserver(()=>{if(!ms.classList.contains('on'))return;setTimeout(()=>{ms.querySelectorAll('*').forEach(e=>{if(e.children.length===0&&/^المحرك المحلي$/.test(e.textContent.trim()))e.textContent=inClaude()?'Claude ✓':hasAny()?'متصل ✓':'اربط الذكاء'})},60)}).observe(ms,{attributes:true,attributeFilter:['class']})})();
 })();
 </script>
 <style id="naft-v40-css">
@@ -11445,7 +11451,8 @@ window.NaftTools={list:()=>T,guide:'\nلديك أدوات تقرأ بيانات 
 (()=>{'use strict';
 const EK='naft.ocr.engine';
 const pref=()=>{try{return localStorage.getItem(EK)||'auto'}catch(e){return 'auto'}};
-let SM;const sample=()=>SM!==undefined?Promise.resolve(SM):(window.claude&&window.claude.use?Promise.race([window.claude.use('sample'),new Promise(r=>setTimeout(()=>r(null),8000))]).then(x=>SM=x||null).catch(()=>SM=null):Promise.resolve(SM=null));
+const extSM=()=>{try{const a=window.NaftClaudeAPI,p=a&&a.prov&&a.prov();if((p==='or'&&localStorage.getItem('naft.or.vis')!=='0')||(p==='cl'&&a.key()))return (prompt,o)=>NaftDeepSeek.smp(prompt,{claudeOnly:true,images:o&&o.images,signal:o&&o.signal}).then(t=>({text:t}))}catch(e){}return null};
+let SM;const sample=()=>sample0().then(x=>x||extSM());const sample0=()=>SM!==undefined?Promise.resolve(SM):(window.claude&&window.claude.use?Promise.race([window.claude.use('sample'),new Promise(r=>setTimeout(()=>r(null),8000))]).then(x=>SM=x||null).catch(()=>SM=null):Promise.resolve(SM=null));
 const abortE=()=>Object.assign(new Error('aborted'),{name:'AbortError'});
 async function toBlob(src){
  let img=src;
@@ -13610,16 +13617,19 @@ function npcTick(dt){npcT-=dt;if(npcT>0||UG||CIN.on)return;npcT=.3;const f=cam.y
  if(!key){if(PANOWN==='npc'){PANOWN=null;p.classList.remove('on')}return}PANOWN='npc';
  if(best){const D=NPCDEF[best.id];p.innerHTML='<div class="h"><b>'+D.ic+' '+D.n+'</b><span>'+D.role+'</span><span class="sp"></span><button class="w3-b" data-n="x" style="height:32px;min-width:32px">✕</button></div><div class="a"><button class="ok" data-n="talk">💬 تكلّم مع '+D.n+'</button>'+(best.id==='lina'?'<button data-n="voc">📘 تحدي الكلمات 💎</button>':'')+'</div>';p.classList.add('on');p.onclick=e=>{const b=e.target.closest('[data-n]');if(!b)return;if(b.dataset.n==='x'){PANOWN=null;p.classList.remove('on');return}if(b.dataset.n==='voc')return vocab();npcChat(best.id)}}
  else{p.innerHTML='<div class="h"><b>'+sp.ic+' '+sp.t+'</b><span>'+sp.sub+'</span><span class="sp"></span><button class="w3-b" data-n="x" style="height:32px;min-width:32px">✕</button></div><div class="a"><button class="ok" data-n="go">'+(sp.btn||'✨ جرّب')+'</button></div>';p.classList.add('on');p.onclick=e=>{const b=e.target.closest('[data-n]');if(!b)return;if(b.dataset.n==='x'){PANOWN=null;p.classList.remove('on');return}sp.fn()}}}
+const QEND='\n\n[قاعدة الختام — طبّقها ولا تذكرها: آخر سطر في ردك سطر مستقل يبدأ بـ «❓» فيه سؤال واحد قصير مرتبط مباشرة بآخر فكرة أو آخر حدث قلته في ردك هذا نفسه، يشوّقني أكمل معك (مثل: تبي تعرف وش صار بعدها؟ / تتوقع ليش صار كذا؟). ممنوع يكون السؤال عن موضوع قديم أو عام أو ما له علاقة بآخر كلامك. وإذا قلت «أكمل» كمّل من حيث وقفت بالضبط، ثم اختم بنفس الطريقة.]';
+const aiExt=()=>{try{const a=window.NaftClaudeAPI,p=a&&a.prov&&a.prov();if(p==='or')return (a.orModel()||'').split('/').pop()||'الذكاء الأونلاين';if(p==='ds')return 'DeepSeek'}catch(_){}return ''};
 function npcChat(id){npcCloudMe();const D=NPCDEF[id],st=npcStore(),H2=st[id]||(st[id]=[]);if(!H2.length){H2.push({r:'a',t:D.greet,ts:Date.now()});npcSave(st)}const fkey='npc_'+id;
  const body=()=>{const o=Math.max(0,H2.length-40);return H2.slice(o).map((m,k)=>'<div class="nb '+(m.r==='u'?'me':'it')+'">'+npcHtml(m.t)+(m.r==='a'&&m.t!=='…'?'<button class="nsay" data-say="'+(o+k)+'" aria-label="اسمع الرد">🔊 اسمع</button>':'')+'</div>').join('')};
- const s=sheet(H3(D.ic+' '+D.n+' <small style="font-weight:400;opacity:.7">· '+D.role+'</small>')+(hasAI()?(D.fixed?'<p style="margin:0 0 6px;font-size:12px;opacity:.7">مربوط بـClaude Sonnet</p>':'<div class="sec">النموذج</div>'+seg(fkey))+'<div class="nchat">'+body()+'</div>'+'<div class="nchip">'+(NCHIPS[id]||[]).map(c=>'<button data-chip>'+esc(c)+'</button>').join('')+'<button data-me>🪪 عرّفهم عليك</button></div><div class="nst">'+(D.start?'<button class="bt" data-st>'+D.start+'</button>':'')+(id!=='yazid'?'<button class="bt" data-more>▶ أكمل</button>':'')+'</div>'+'<div class="nin"><textarea rows="2" placeholder="اكتب… أو اضغط 🎤 وتكلّم" data-in></textarea><button class="bt ndic" data-dic aria-label="حوّل صوتك لكتابة">🎤</button><button class="bt p" data-send>إرسال</button></div><div class="nvc"><button class="bt" data-vc>📞 مكالمة صوتية</button><button class="bt'+(npcSayOn()?' on2':'')+'" data-auto>🔊 يرد بصوت: '+(npcSayOn()?'شغّال':'مطفي')+'</button><button class="bt nsm" data-vsel aria-label="اختيار الصوت">🎙</button><button class="bt nsm" data-pz aria-label="إيقاف مؤقت">⏸</button><button class="bt nsm" data-rt aria-label="سرعة الصوت">⏩ '+(W.set.npcRate||1)+'×</button>'+(id==='lina'?'<button class="bt" data-lng>🎤 أتكلم: '+(npcLang(id)==='en-US'?'English':'عربي')+'</button>':'')+'<span data-vs></span></div><p style="font-size:11px;opacity:.6;margin:6px 0 0">💾 المحادثة محفوظة في سحابتك وتطلع لك في كل أجهزتك.</p>':offBox));
+ const s=sheet(H3(D.ic+' '+D.n+' <small style="font-weight:400;opacity:.7">· '+D.role+'</small>')+(hasAI()?(aiExt()?'<p style="margin:0 0 6px;font-size:12px;opacity:.7">🌐 مربوط بـ'+esc(aiExt())+'</p>':D.fixed?'<p style="margin:0 0 6px;font-size:12px;opacity:.7">مربوط بـClaude Sonnet</p>':'<div class="sec">النموذج</div>'+seg(fkey))+'<div class="nchat">'+body()+'</div>'+'<div class="nchip">'+(NCHIPS[id]||[]).map(c=>'<button data-chip>'+esc(c)+'</button>').join('')+'<button data-me>🪪 عرّفهم عليك</button></div><div class="nst">'+(D.start?'<button class="bt" data-st>'+D.start+'</button>':'')+(id!=='yazid'?'<button class="bt" data-more>▶ أكمل</button>':'')+'</div>'+'<div class="nin"><textarea rows="2" placeholder="اكتب… أو اضغط 🎤 وتكلّم" data-in></textarea><button class="bt ndic" data-dic aria-label="حوّل صوتك لكتابة">🎤</button><button class="bt p" data-send>إرسال</button></div><div class="nvc"><button class="bt" data-vc>📞 مكالمة صوتية</button><button class="bt'+(npcSayOn()?' on2':'')+'" data-auto>🔊 يرد بصوت: '+(npcSayOn()?'شغّال':'مطفي')+'</button><button class="bt nsm" data-vsel aria-label="اختيار الصوت">🎙</button><button class="bt nsm" data-pz aria-label="إيقاف مؤقت">⏸</button><button class="bt nsm" data-rt aria-label="سرعة الصوت">⏩ '+(W.set.npcRate||1)+'×</button>'+(id==='lina'?'<button class="bt" data-lng>🎤 أتكلم: '+(npcLang(id)==='en-US'?'English':'عربي')+'</button>':'')+'<span data-vs></span></div><p style="font-size:11px;opacity:.6;margin:6px 0 0">💾 المحادثة محفوظة في سحابتك وتطلع لك في كل أجهزتك.</p>':offBox));
  const box=s.querySelector('.nchat');if(box)box.scrollTop=box.scrollHeight;let busy=false;
  const send=async txt=>{if(busy||!txt.trim())return;busy=true;H2.push({r:'u',t:txt.trim(),ts:Date.now()});const live={r:'a',t:'…',ts:Date.now()};H2.push(live);box.innerHTML=body();box.scrollTop=box.scrollHeight;
   const hist=H2.slice(-26,-1);while(hist.length&&hist[0].r!=='u')hist.shift();const msgs=[];hist.forEach(m=>{const role=m.r==='u'?'user':'assistant';if(msgs.length&&msgs[msgs.length-1].role===role)msgs[msgs.length-1].content+='\n'+m.t;else msgs.push({role,content:m.t})});
   if(msgs.length)msgs[0].content=D.sys+(D.expert?GRULES:(id!=='yazid'&&id!=='misbah'?NSTYLE:''))+(NTOOLS[id]||'')+npcMe()+'\n\nسياق: اليوم '+new Date().toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')+'.\n\n'+msgs[0].content;
+  if(msgs.length&&id!=='yazid')msgs[msgs.length-1].content+=QEND;
   const m=D.fixed?MODELS[D.fixed]:MODELS[mOf(fkey)];const SP=(VC.on||npcSayOn())&&alive()?npcStream(id,{onSay:t=>vst('🗣 '+t.slice(0,70))}):null;CUR.sp=SP;if(SP)vst('🗣 '+D.n+' يتكلم…');
   try{const t=await NaftDeepSeek.chat({claudeOnly:true,model:m.id,modelTier:m.t,messages:msgs,maxTokens:id==='asad'||D.expert?1800:1200,temperature:.8,onDelta:x=>{live.t=x;if(SP)try{SP.feed(x)}catch(_){}const last=box.querySelector('.nb:last-child');if(last){last.innerHTML=npcHtml(x);box.scrollTop=box.scrollHeight}}});live.t=String(t||'').trim()||'…'}
-  catch(e){live.t='ما قدرت أوصل لـClaude الحين ('+(e.message||e)+')'}busy=false;try{npcTools(live.t)}catch(_){}if(id==='lina'&&/\[\[ألماس/.test(live.t)){const dd=today();if(!W.diaLog||W.diaLog.d!==dd)W.diaLog={d:dd,n:0};if(W.diaLog.n<DIAMAX_CHAT){W.diaLog.n++;diaAdd(1,'من لينا')}}const st2=npcStore();st2[id]=H2.slice(-80);npcSave(st2);box.innerHTML=body();box.scrollTop=box.scrollHeight;if(SP){try{SP.finish(live.t,()=>{if(CUR.sp===SP)CUR.sp=null;if(VC.on&&alive())vcListen();else vst('')})}catch(_){if(VC.on&&alive())vcListen()}}else if(VC.on&&alive())vcListen()};
+  catch(e){live.t='ما قدرت أوصل للذكاء الحين ('+(e.message||e)+')'}busy=false;try{npcTools(live.t)}catch(_){}if(id==='lina'&&/\[\[ألماس/.test(live.t)){const dd=today();if(!W.diaLog||W.diaLog.d!==dd)W.diaLog={d:dd,n:0};if(W.diaLog.n<DIAMAX_CHAT){W.diaLog.n++;diaAdd(1,'من لينا')}}const st2=npcStore();st2[id]=H2.slice(-80);npcSave(st2);box.innerHTML=body();box.scrollTop=box.scrollHeight;if(SP){try{SP.finish(live.t,()=>{if(CUR.sp===SP)CUR.sp=null;if(VC.on&&alive())vcListen();else vst('')})}catch(_){if(VC.on&&alive())vcListen()}}else if(VC.on&&alive())vcListen()};
  const VC={on:false,rec:null},CUR={sp:null,dic:null};const vs=s.querySelector('[data-vs]'),vb=s.querySelector('[data-vc]');const vst=t=>{if(vs)vs.textContent=t};const alive=()=>box&&box.isConnected&&$('#w3Sh').classList.contains('on');
  const vcStop=()=>{VC.on=false;clearInterval(VC.iv);if(CUR.sp){CUR.sp.stop();CUR.sp=null}try{CUR.dic&&CUR.dic.abort()}catch(_){}try{VC.rec&&VC.rec.abort()}catch(_){}VC.rec=null;try{speechSynthesis.cancel()}catch(_){}if(vb){vb.classList.remove('on');vb.textContent='🎙️ كلّمه بصوتك'}vst('')};
  const vcListen=()=>{const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){vcStop();npcNoMic();return}if(!alive()){vcStop();return}
