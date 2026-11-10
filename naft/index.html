@@ -5507,7 +5507,7 @@ run();
 <button id="naftContractBtn" type="button">📜 العقد</button>
 <div id="naftContractOverlay" role="dialog" aria-modal="true" aria-label="إدارة العقد">
  <div class="nc-wrap">
-  <header class="nc-head"><h1>📜 إدارة العقد <span class="nc-version-badge">النسخة 43</span></h1><button class="nc-btn" id="ncClose">إغلاق ✕</button></header>
+  <header class="nc-head"><h1>📜 إدارة العقد <span class="nc-version-badge">النسخة 44</span></h1><button class="nc-btn" id="ncClose">إغلاق ✕</button></header>
   <div id="ncSealStatus" class="nc-seal">الختم غير مفعّل.</div>
   <nav class="nc-side-nav" aria-label="التنقل السريع داخل العقد">
    <button type="button" title="ختم العقد" aria-label="ختم العقد" data-nc-popup="ncSealCard">🔏</button>
@@ -5536,6 +5536,9 @@ run();
  const fields=['basics','name','number','party1','party2','start','end','value','status','content','violations','memories'];
  let data={fields:{},sealedAt:0,unlockAt:0,excuseUnlockAt:0,excuseLockUntil:0,excuses:[],archives:[],version:1};
  try{const old=localStorage.getItem(KEY);if(old)data=Object.assign(data,JSON.parse(old));}catch(e){}
+ // معاذ طلب: الرقم صار 44 — يتغيّر الرقم بس، وكل البنود والختم والأرشيف على حالها
+ if(old44()){data.version=44;data.v44set=1;try{localStorage.setItem(KEY,JSON.stringify(data));}catch(e){}}
+ function old44(){try{return localStorage.getItem(KEY)&&!data.v44set&&(+data.version||0)<44}catch(e){return false}}
  // One-time transition to contract version 43. Preserve the prior sealed page as an immutable archive.
  if(!data.version43Initialized&&!(+data.version>=43)&&!Array.isArray(data.vlist)&&!Array.isArray(data.commits)){
    const priorArchives=Array.isArray(data.archives)?data.archives.slice():[];
@@ -5673,7 +5676,7 @@ run();
 #naftContractOverlay .nc-rich-editor:empty:before{content:attr(data-placeholder);color:#b4b0c8;pointer-events:none}
 #naftContractOverlay .nc-rich-editor[contenteditable="false"]{background:#f6f5fa;color:#77738b}
 #naftContractOverlay .nc-section-remove{font-size:10px!important;padding:5px 7px!important}
-#naftContractOverlay .nc-version-badge{content:"النسخة 43"}
+#naftContractOverlay .nc-version-badge{content:"النسخة 44"}
 @media(max-width:600px){#naftContractOverlay .nc-format-toolbar{gap:3px}#naftContractOverlay .nc-format-toolbar button,#naftContractOverlay .nc-format-toolbar select{font-size:10px;min-height:26px;padding:4px 6px}#naftContractOverlay .nc-rich-editor{font-size:16px;min-height:76px;padding:9px}}
 </style>
 
